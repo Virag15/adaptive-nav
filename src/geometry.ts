@@ -21,8 +21,11 @@ export interface NavMetrics {
 }
 
 export const DEFAULT_METRICS: NavMetrics = {
-  slot: 56,
-  pad: 6,
+  // A 46px indicator inside a 54px pill: the scale of an iOS tab bar (49pt)
+  // and its Liquid Glass successor, above the 44pt hit region the guideline
+  // asks for — every slot is hit-tested at the pill's full height.
+  slot: 46,
+  pad: 4,
   gap: 8,
   edge: 12,
   buyInset: 10,
@@ -35,9 +38,9 @@ export const DEFAULT_METRICS: NavMetrics = {
  * to spare on either side. Wide screens get the preferred slot unchanged, so the
  * composition never changes between phones, only its scale.
  *
- * Input: (430, 4, DEFAULT_METRICS)  Output: 56
- * Input: (393, 4, DEFAULT_METRICS)  Output: 52
- * Input: (320, 4, DEFAULT_METRICS)  Output: 40
+ * Input: (430, 4, DEFAULT_METRICS)  Output: 46
+ * Input: (393, 4, DEFAULT_METRICS)  Output: 46
+ * Input: (320, 4, DEFAULT_METRICS)  Output: 42
  */
 export function solveSlot(viewportWidth: number, tabCount: number, m: NavMetrics): number {
   // Three bodies (pill and two circles), each padded on both sides, two gaps.

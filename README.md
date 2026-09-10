@@ -230,9 +230,30 @@ alone when they do not, the title only after that, narrower cells last. The
 pill shifts to centre the whole cluster, since the two edges rarely weigh the
 same. All of it is measured from stand-ins before paint, and only sections
 that are staying are counted, so a section on its way out never flickers the
-fit. The band is 50 px with 40 px cells; every cell is one width, the widest
-name's, which is what lets the capsule, the scrub and the magnet keep the
-arithmetic of a compact pill. `minimized` has no effect at the top, where the
+fit. The band's edges are pinned to the window's margins and the tabs are
+centred between them, as the guideline draws a toolbar. Every cell is one
+width, the widest name's, which is what lets the capsule, the scrub and the
+magnet keep the arithmetic of a compact pill.
+
+### Sizes
+
+Checked against the guideline's one hard number, "a hit region of at least
+44x44 pt", and the platforms' own bars (an iOS tab bar is 49 pt, a toolbar
+44 pt, a Mac's unified toolbar 52 pt with controls near 30 pt):
+
+| | phone | iPad (touch) | Mac (pointer) |
+| --- | --- | --- | --- |
+| pill or section | 54 px | 48 px | 44 px |
+| indicator cell | 46 px | 40 px | 36 px |
+| hit region | 54 × 46 | 48 × cell | 44 × cell |
+| circles | 54 px | 48 px | 44 px |
+| symbols | 24 px | 20 px | 18 px |
+| name | 10 px, under | 13 px, beside | 13 px, beside |
+
+Every slot is hit-tested at the pill's full height, so the hit region never
+falls under 44 px even where the visible cell does. A trackpad beside a
+touch screen still counts as touch; only a pointer with no touch at all gets
+the Mac scale. `minimized` has no effect at the top, where the
 guideline asks that the tab bar stay visible.
 
 **macOS.** "The toolbar resides in the frame at the top of a window" and
@@ -501,7 +522,7 @@ bar's radii.
 `solveSlot`, `capsuleRadii`, `pillWidth`, `indicatorBox` and `DEFAULT_METRICS`
 are exported so a host can compute the bar's footprint without rendering it —
 for a sheet that has to clear it, say. The bar's height is `slot + 2 · pad`
-(64px at the default slot). `glassVars`, `resolveGlass`, `GLASS_PRESETS` and
+(54px at the default slot). `glassVars`, `resolveGlass`, `GLASS_PRESETS` and
 `DEFAULT_GLASS` do the same for the material.
 
 ## Accessibility

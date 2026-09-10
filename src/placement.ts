@@ -26,11 +26,16 @@ export function resolvePlacement(setting: PlacementSetting, regular: boolean): P
 }
 
 /**
- * The band at the top of a regular-width view is shorter than a phone's
- * floating cluster: a 50px section, the height of a toolbar, with its
- * circles to match.
+ * The band at the top of a regular-width view. With touch (an iPad) every
+ * section is 48px, so a hit region is never under the 44pt the guideline
+ * asks for; with a pointer alone (a Mac) it is the 44px compact scale of a
+ * Mac toolbar, whose controls are smaller than a finger needs. The 16px edge
+ * is the layout margin the sections are pinned to.
  */
-export const TOP_METRICS: Partial<NavMetrics> = { slot: 40, pad: 5, gap: 10, edge: 16 };
+export const TOP_TOUCH_METRICS: Partial<NavMetrics> = { slot: 40, pad: 4, gap: 10, edge: 16 };
+export const TOP_POINTER_METRICS: Partial<NavMetrics> = { slot: 36, pad: 4, gap: 10, edge: 16 };
+/** The touch band; kept under its old name. */
+export const TOP_METRICS = TOP_TOUCH_METRICS;
 
 /** A tab's box along the track, in px from the first tab's leading edge. */
 export type TabRect = { left: number; width: number };

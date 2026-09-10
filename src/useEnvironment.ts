@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { isChromium, isLowEnd, type Environment } from './quality';
 
 /** What the server assumes, and what the first client render must match. */
-const UNKNOWN: Environment = { chromium: false, lowEnd: false, reducedTransparency: false };
+const UNKNOWN: Environment = { chromium: false, lowEnd: false, reducedTransparency: false, touch: true };
 
 function detect(): Environment {
   const nav = navigator as Navigator & { deviceMemory?: number; userAgentData?: { brands?: { brand: string }[] } };
@@ -10,6 +10,8 @@ function detect(): Environment {
     chromium: isChromium(nav),
     lowEnd: isLowEnd(nav),
     reducedTransparency: window.matchMedia?.('(prefers-reduced-transparency: reduce)').matches ?? false,
+    // A trackpad beside a touch screen still reads as touch; only a pointer alone does not.
+    touch: window.matchMedia?.('(any-pointer: coarse)').matches ?? true,
   };
 }
 

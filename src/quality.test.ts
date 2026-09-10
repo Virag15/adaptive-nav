@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EDGE_LENS, FULL_LENS, NO_LENS, isChromium, isLowEnd, resolveQuality } from './quality.ts';
 
-const capable = { chromium: true, lowEnd: false, reducedTransparency: false };
+const capable = { chromium: true, lowEnd: false, reducedTransparency: false, touch: true };
 
 test('auto reads the device: full where it can, edges where it should, off where it must', () => {
   assert.deepEqual(resolveQuality('auto', capable), FULL_LENS);
@@ -12,7 +12,7 @@ test('auto reads the device: full where it can, edges where it should, off where
 });
 
 test('a forced quality is honoured whatever the device says', () => {
-  const weak = { chromium: false, lowEnd: true, reducedTransparency: true };
+  const weak = { chromium: false, lowEnd: true, reducedTransparency: true, touch: true };
   assert.deepEqual(resolveQuality('full', weak), FULL_LENS);
   assert.deepEqual(resolveQuality('edges', weak), EDGE_LENS);
   assert.deepEqual(resolveQuality('off', capable), NO_LENS);

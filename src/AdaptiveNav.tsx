@@ -54,7 +54,7 @@ import { useGlass } from './useGlass';
 import { useBackdropTone } from './useBackdropTone';
 import { resolveQuality, type Quality } from './quality';
 import { useEnvironment } from './useEnvironment';
-import { TOP_METRICS, type PlacementSetting } from './placement';
+import { TOP_POINTER_METRICS, TOP_TOUCH_METRICS, type PlacementSetting } from './placement';
 import { usePlacement } from './usePlacement';
 import type { ToneSetting } from './tone';
 import type {
@@ -185,8 +185,8 @@ const TITLE_PAD = 14;
 const FIELD_MIN = 140;
 const FIELD_MAX = 260;
 
-/** How the band fits its window: the cell, whether names show, whether the title shows, and how far the pill shifts to centre the whole cluster. */
-type TopFit = { pitch: number; labels: boolean; title: boolean; shift: number };
+/** How the band fits its window: the cell, the widest name's cell, whether names show, whether the title shows. */
+type TopFit = { pitch: number; widest: number; labels: boolean; title: boolean };
 
 const POP_EASE = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const BADGE_POP: Keyframe[] = [{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.45 }, { transform: 'scale(1)' }];
@@ -326,7 +326,7 @@ function Tab({
   tab,
   index,
   offset,
-  slot,
+  hit,
   pitch,
   x,
   magnet,
@@ -343,7 +343,8 @@ function Tab({
   tab: TabOption;
   index: number;
   offset: number;
-  slot: number;
+  /** The button's height: the pill's, so the hit region is never smaller than the guideline's 44pt. */
+  hit: number;
   /** The width of one section's cell: the slot, or a share of a spanning pill. */
   pitch: number;
   x: MotionValue<number>;
@@ -389,7 +390,7 @@ function Tab({
         opacity: hidden ? 0 : 1,
       }}
       transition={shape}
-      style={{ width: pitch, height: slot, pointerEvents: hidden ? 'none' : 'auto' }}
+      style={{ width: pitch, height: hit, pointerEvents: hidden ? 'none' : 'auto' }}
       onPointerDown={(e) => handlers.down(e, tab.id)}
       onPointerMove={handlers.move}
       onPointerUp={handlers.up}
@@ -439,7 +440,14 @@ export function AdaptiveNav({
 }: AdaptiveNavProps) {
   const placement = usePlacement(placementSetting);
   const top = placement === 'top';
-  const m: NavMetrics = { ...DEFAULT_METRICS, ...(top ? TOP_METRICS : null), ...metrics };
+  const env = useEnvironment();
+  // At the top, a finger gets a band whose sections are 48px, a pointer alone
+  // the 44px compact scale of a Mac toolbar; both keep 44px hit regions.
+  const m: NavMetrics = {
+    ...DEFAULT_METRICS,
+    ...(top ? (env.touch ? TOP_TOUCH_METRICS : TOP_POINTER_METRICS) : null),
+    ...metrics,
+  };
   const L: NavLabels = { ...DEFAULT_LABELS, ...labels };
 
   const [preview, setPreview] = useState<string | null>(null);
@@ -474,7 +482,7 @@ export function AdaptiveNav({
 
   const g = useGlass(glass);
   // What the lens costs is decided per device; what it looks like, per material.
-  const rendition = resolveQuality(quality, useEnvironment());
+  const rendition = resolveQuality(quality, env);
   const bends = g.refraction > 0;
   const pillLens = bends && rendition.pill;
   const circleLens = bends && rendition.circles;
@@ -519,13 +527,14 @@ export function AdaptiveNav({
   // scrub and the magnet arithmetic the same as in a compact pill.
   /** The title on the leading edge at regular width; a selection's count stands in for it. */
   const heading = top ? (title ?? (mode === 'select' ? select?.label : undefined)) : undefined;
-  const [topFit, setTopFit] = useState<TopFit>({ pitch: TOP_PITCH_GUESS, labels: true, title: true, shift: 0 });
+  const [topFit, setTopFit] = useState<TopFit>({ pitch: TOP_PITCH_GUESS, widest: TOP_PITCH_GUESS, labels: true, title: true });
   // The band must never overflow: the guideline leaves overflow menus to the
   // system and asks for layouts that do not need one, and it has the centre
   // give way before the edges. So, measured before paint: names beside
   // glyphs while they fit; glyphs alone when they do not; the title last;
-  // and only then narrower cells. The pill shifts to centre the whole
-  // cluster, since the two edges rarely weigh the same.
+  // and only then narrower cells. The edges are pinned to the window's
+  // margins and the pill is centred between them, as the guideline draws
+  // them, so the pill's room is the window less twice the wider edge.
   useLayoutEffect(() => {
     if (!top) return;
     const track = trackRef.current;
@@ -535,35 +544,32 @@ export function AdaptiveNav({
     if (!names.length) return;
     const widest = Math.ceil(Math.max(...names)) + TOP_TAB_PAD * 2;
     const titleText = track.querySelector<HTMLElement>('.anav__measure--title')?.offsetWidth ?? 0;
-    const titleSection = titleText ? Math.ceil(titleText) + TITLE_PAD * 2 + m.gap : 0;
-    const backSection = pushed ? sat + m.gap : 0;
+    const titleW = titleText ? Math.ceil(titleText) + TITLE_PAD * 2 : 0;
+    const backW = pushed ? sat : 0;
     // Only sections that are staying count: one on its way out still has its
     // width for a moment, and a fit measured against it would flicker.
     const staying = [...root.querySelectorAll<HTMLElement>('.anav__side--trailing .anav__satellite')].filter(
       (el) => el.dataset.for === '*' || el.dataset.for === mode,
     );
-    const trailingSection = staying.length
-      ? staying.reduce((sum, el) => sum + el.offsetWidth, 0) + m.gap * staying.length
-      : 0;
-    const fixed = m.edge * 2 + backSection + trailingSection + m.pad * 2;
+    const trailingW = staying.reduce((sum, el) => sum + el.offsetWidth, 0) + m.gap * Math.max(0, staying.length - 1);
+    const room = (leadingW: number) => vw - m.edge * 2 - 2 * (Math.max(leadingW, trailingW) + m.gap) - m.pad * 2;
     const n = options.length;
+    const withTitle = backW + (titleW ? titleW + (backW ? m.gap : 0) : 0);
     let labels = true;
-    let showTitle = titleText > 0;
+    let showTitle = titleW > 0;
     let pitch = widest;
-    if (widest * n + fixed + titleSection > vw) {
+    if (widest * n > room(withTitle)) {
       labels = false;
       pitch = TOP_ICON_CELL;
-      if (TOP_ICON_CELL * n + fixed + titleSection > vw) {
+      if (TOP_ICON_CELL * n > room(withTitle)) {
         showTitle = false;
-        pitch = Math.max(TOP_CELL_MIN, Math.min(TOP_ICON_CELL, Math.floor((vw - fixed) / n)));
+        pitch = Math.max(TOP_CELL_MIN, Math.min(TOP_ICON_CELL, Math.floor(room(backW) / n)));
       }
     }
-    const leadingSection = backSection + (showTitle ? titleSection : 0);
-    const shift = (leadingSection - trailingSection) / 2;
     setTopFit((prev) =>
-      prev.pitch === pitch && prev.labels === labels && prev.title === showTitle && Math.abs(prev.shift - shift) < 0.5
+      prev.pitch === pitch && prev.widest === widest && prev.labels === labels && prev.title === showTitle
         ? prev
-        : { pitch, labels, title: showTitle, shift },
+        : { pitch, widest, labels, title: showTitle },
     );
   });
   const showLabel = labelled || (top && topFit.labels);
@@ -576,12 +582,17 @@ export function AdaptiveNav({
   const shift = spanning ? (((leading ? 1 : 0) - (trailing ? 1 : 0)) * (sat + m.gap)) / 2 : 0;
   /** One section's share of the pill: the slot, a spanning width divided among the sections, or a regular-width cell. */
   const pitch = top ? topPitch : spanning && !wide ? (width - m.pad * 2) / Math.max(1, shown) : slot;
-  // The field's width is settled before the cells are, from the window and the
-  // least the cells can take, so the fit above never chases its own tail.
+  // The field takes what the trailing edge's half of the window can spare
+  // beside a pill that still shows its names: the margin, the gap, half of
+  // that pill, and the action. Only when even the least field would not fit
+  // do the names give way, in the fit above.
   const fieldWidth = Math.round(
     Math.max(
       FIELD_MIN,
-      Math.min(FIELD_MAX, vw - m.edge * 2 - (sat + m.gap) * 2 - TOP_ICON_CELL * options.length - m.pad * 2 - 60),
+      Math.min(
+        FIELD_MAX,
+        vw / 2 - m.edge - m.gap - (topFit.widest * options.length + m.pad * 2) / 2 - (action ? sat + m.gap : 0),
+      ),
     ),
   );
 
@@ -983,89 +994,10 @@ export function AdaptiveNav({
     </Satellite>
   ) : null;
   const calm = reduceMotion || keyboardInput;
-  const section = (key: string, tag: string, className: string | undefined, children: ReactNode) => (
-    <Satellite key={key} side="trailing" group className={className} tag={tag} tuck={sat + m.gap} reduce={calm} lens={false}>
-      <span className="anav__surface" aria-hidden />
-      {children}
-    </Satellite>
-  );
-
-  return (
-    <div
-      ref={rootRef}
-      onPointerDownCapture={() => setKeyboardInput(false)}
-      onKeyDownCapture={() => setKeyboardInput(true)}
-      className={className ? `anav ${className}` : 'anav'}
-      data-mode={mode}
-      data-placement={placement}
-      data-fill={spanning || undefined}
-      data-tone={tone}
-      data-labelled={labelled || undefined}
-      data-minimized={folded || undefined}
-      data-hidden={hidden || undefined}
-      data-indicator={indicator}
-      data-pressed={pressed || undefined}
-      data-scrub={scrubbing || undefined}
-      data-keyboard={keyboardInput || undefined}
-      data-pill-lens={pillLens || undefined}
-      data-circle-lens={circleLens || undefined}
-      aria-hidden={hidden || undefined}
-      inert={hidden || undefined}
-      style={{
-        // A bar with its own material writes every token here, where the
-        // composites are read, so the override stays scoped to this bar.
-        ...(glass !== undefined ? glassVars(material) : null),
-        ['--anav-slot' as string]: `${slot}px`,
-        ['--anav-sat' as string]: `${sat}px`,
-        ['--anav-pad' as string]: `${m.pad}px`,
-        ['--anav-gap' as string]: `${m.gap}px`,
-        ['--anav-r-outer' as string]: `${outerRadius}px`,
-        ['--anav-r-inner' as string]: `${innerRadius}px`,
-        ['--anav-pitch' as string]: `${pitch}px`,
-        ['--anav-keyboard' as string]: `${keyboard}px`,
-        ['--anav-refract-pill' as string]: pillLens ? `url(#${filterId}-pill)` : 'none',
-        ['--anav-refract-circle' as string]: circleLens ? `url(#${filterId}-circle)` : 'none',
-        ['--anav-refract-capsule' as string]: bubbleLens ? `url(#${filterId}-capsule)` : 'none',
-      }}
-    >
-      {pillLens && (
-        <GlassFilters
-          id={filterId}
-          width={width}
-          height={sat}
-          circle={sat}
-          circles={circleLens}
-          capsule={bubbleLens ? box.w : 0}
-          blur={g.blur}
-          saturate={g.saturate}
-          refraction={g.refraction}
-          dispersion={dispersion}
-          masks={masks}
-        />
-      )}
-
-      <motion.div
-        className="anav__pill"
-        initial={false}
-        // Hidden slides the whole cluster below the screen edge, shadow
-        // included, shrinking a little as it goes so it reads as leaving.
-        animate={{
-          width,
-          transform: `translateX(${top ? topFit.shift : shift}px) translateY(${hidden ? (top ? -(sat + 96) : sat + 96) : 0}px) scale(${hidden ? 0.97 : 1})`,
-        }}
-        transition={shape}
-        style={{ transformOrigin: top ? '50% 0%' : '50% 100%' }}
-      >
-        {pillLens && <span className="anav__refract" aria-hidden />}
-        <span className="anav__frost anav__frost--pill" aria-hidden />
-        <span className="anav__surface" aria-hidden />
-        <span className="anav__edge anav__edge--pill" aria-hidden />
-        <span className="anav__shine" aria-hidden />
-
-        {top ? (
-          // The leading edge: Back or Close at the far end, then the title,
-          // each its own section, the way the guideline orders them.
-          <div className="anav__side anav__side--leading">
+  const leadingEdge = top ? (
+    // The leading edge, pinned to the margin: Back or Close at the far end,
+    // then the title, each its own section, the way the guideline orders them.
+    <div className="anav__side anav__side--leading">
             <AnimatePresence initial={false}>
               {back}
               {heading && topFit.title && (
@@ -1080,9 +1012,80 @@ export function AdaptiveNav({
               )}
             </AnimatePresence>
           </div>
-        ) : (
-          <AnimatePresence initial={false}>{back}</AnimatePresence>
-        )}
+  ) : null;
+  const section = (key: string, tag: string, className: string | undefined, children: ReactNode) => (
+    <Satellite key={key} side="trailing" group className={className} tag={tag} tuck={sat + m.gap} reduce={calm} lens={false}>
+      <span className="anav__surface" aria-hidden />
+      {children}
+    </Satellite>
+  );
+  const trailingEdge = top ? (
+    // The trailing edge, pinned to the margin, in distinct sections with fixed
+    // space between: the symbol actions together, the field, the quiet
+    // secondary, and last the one prominent action, its whole section tinted.
+    <div className="anav__side anav__side--trailing">
+            <AnimatePresence initial={false}>
+              {(action || (toolbar && tools?.length)) &&
+                section(
+                  'actions',
+                  '*',
+                  undefined,
+                  <div className="anav__row" role="toolbar" aria-label={L.tools}>
+                    <AnimatePresence initial={false}>
+                      {toolbar && tools?.map((tool) => <GroupItem key={`tool:${tool.id}`}>{iconButton(tool)}</GroupItem>)}
+                      {action && <GroupItem key={`action:${action.id}`}>{iconButton(action)}</GroupItem>}
+                    </AnimatePresence>
+                  </div>,
+                )}
+              {searching &&
+                section(
+                  'field',
+                  'search',
+                  'anav__satellite--field',
+                  <div className="anav__row anav__fieldRow" style={{ width: fieldWidth }}>
+                    {field}
+                  </div>,
+                )}
+              {mode === 'confirm' &&
+                confirm?.secondary &&
+                section(
+                  'secondary',
+                  'confirm',
+                  undefined,
+                  <div className="anav__row">
+                    <button type="button" className="anav__quiet" onClick={confirm.secondary.onPress}>
+                      {confirm.secondary.label}
+                    </button>
+                  </div>,
+                )}
+              {prominent && section(`prominent:${mode}`, mode, 'anav__satellite--prominent', <div className="anav__row">{prominent}</div>)}
+            </AnimatePresence>
+          </div>
+  ) : null;
+
+  const pillNode = (
+      <motion.div
+        key="pill"
+        className="anav__pill"
+        initial={false}
+        // Hidden slides the whole cluster below the screen edge, shadow
+        // included, shrinking a little as it goes so it reads as leaving.
+        animate={{
+          width,
+          transform: top
+            ? 'translateX(0px) translateY(0px) scale(1)'
+            : `translateX(${shift}px) translateY(${hidden ? sat + 96 : 0}px) scale(${hidden ? 0.97 : 1})`,
+        }}
+        transition={shape}
+        style={{ transformOrigin: '50% 100%' }}
+      >
+        {pillLens && <span className="anav__refract" aria-hidden />}
+        <span className="anav__frost anav__frost--pill" aria-hidden />
+        <span className="anav__surface" aria-hidden />
+        <span className="anav__edge anav__edge--pill" aria-hidden />
+        <span className="anav__shine" aria-hidden />
+
+        {!top && <AnimatePresence initial={false}>{back}</AnimatePresence>}
 
         <nav
           ref={trackRef}
@@ -1124,7 +1127,7 @@ export function AdaptiveNav({
                 tab={tab}
                 index={i}
                 offset={indicatorOffset(visible, i, pitch)}
-                slot={slot}
+                hit={sat}
                 pitch={pitch}
                 x={x}
                 magnet={magnet}
@@ -1156,7 +1159,7 @@ export function AdaptiveNav({
               initial={false}
               animate={{ transform: `translateX(${toolsInTrack ? i * slot : 0}px) scale(${toolsInTrack ? 1 : 0.97})`, opacity: toolsInTrack ? 1 : 0 }}
               transition={shape}
-              style={{ width: slot, height: slot, pointerEvents: toolsInTrack ? 'auto' : 'none' }}
+              style={{ width: slot, height: sat, pointerEvents: toolsInTrack ? 'auto' : 'none' }}
               onClick={tool.onPress}
             >
               <span className="anav__magnet">
@@ -1225,49 +1228,7 @@ export function AdaptiveNav({
           )}
         </nav>
 
-        {top ? (
-          // The trailing edge, in distinct sections with fixed space between:
-          // the symbol actions together, the field, the quiet secondary, and
-          // last the one prominent action, its whole section tinted.
-          <div className="anav__side anav__side--trailing">
-            <AnimatePresence initial={false}>
-              {(action || (toolbar && tools?.length)) &&
-                section(
-                  'actions',
-                  '*',
-                  undefined,
-                  <div className="anav__row" role="toolbar" aria-label={L.tools}>
-                    <AnimatePresence initial={false}>
-                      {toolbar && tools?.map((tool) => <GroupItem key={`tool:${tool.id}`}>{iconButton(tool)}</GroupItem>)}
-                      {action && <GroupItem key={`action:${action.id}`}>{iconButton(action)}</GroupItem>}
-                    </AnimatePresence>
-                  </div>,
-                )}
-              {searching &&
-                section(
-                  'field',
-                  'search',
-                  'anav__satellite--field',
-                  <div className="anav__row anav__fieldRow" style={{ width: fieldWidth }}>
-                    {field}
-                  </div>,
-                )}
-              {mode === 'confirm' &&
-                confirm?.secondary &&
-                section(
-                  'secondary',
-                  'confirm',
-                  undefined,
-                  <div className="anav__row">
-                    <button type="button" className="anav__quiet" onClick={confirm.secondary.onPress}>
-                      {confirm.secondary.label}
-                    </button>
-                  </div>,
-                )}
-              {prominent && section(`prominent:${mode}`, mode, 'anav__satellite--prominent', <div className="anav__row">{prominent}</div>)}
-            </AnimatePresence>
-          </div>
-        ) : (
+        {!top && (
           <AnimatePresence initial={false}>
             {action && (
               <Satellite
@@ -1294,6 +1255,86 @@ export function AdaptiveNav({
           </AnimatePresence>
         )}
       </motion.div>
+  );
+
+  return (
+    <div
+      ref={rootRef}
+      onPointerDownCapture={() => setKeyboardInput(false)}
+      onKeyDownCapture={() => setKeyboardInput(true)}
+      className={className ? `anav ${className}` : 'anav'}
+      data-mode={mode}
+      data-placement={placement}
+      data-fill={spanning || undefined}
+      data-tone={tone}
+      data-labelled={labelled || undefined}
+      data-minimized={folded || undefined}
+      data-hidden={hidden || undefined}
+      data-indicator={indicator}
+      data-pressed={pressed || undefined}
+      data-scrub={scrubbing || undefined}
+      data-keyboard={keyboardInput || undefined}
+      data-input={env.touch ? 'touch' : 'pointer'}
+      data-pill-lens={pillLens || undefined}
+      data-circle-lens={circleLens || undefined}
+      aria-hidden={hidden || undefined}
+      inert={hidden || undefined}
+      style={{
+        // A bar with its own material writes every token here, where the
+        // composites are read, so the override stays scoped to this bar.
+        ...(glass !== undefined ? glassVars(material) : null),
+        ['--anav-slot' as string]: `${slot}px`,
+        ['--anav-sat' as string]: `${sat}px`,
+        ['--anav-pad' as string]: `${m.pad}px`,
+        ['--anav-gap' as string]: `${m.gap}px`,
+        ['--anav-r-outer' as string]: `${outerRadius}px`,
+        ['--anav-r-inner' as string]: `${innerRadius}px`,
+        ['--anav-pitch' as string]: `${pitch}px`,
+        ['--anav-edge' as string]: `${m.edge}px`,
+        ['--anav-keyboard' as string]: `${keyboard}px`,
+        ['--anav-refract-pill' as string]: pillLens ? `url(#${filterId}-pill)` : 'none',
+        ['--anav-refract-circle' as string]: circleLens ? `url(#${filterId}-circle)` : 'none',
+        ['--anav-refract-capsule' as string]: bubbleLens ? `url(#${filterId}-capsule)` : 'none',
+      }}
+    >
+      {pillLens && (
+        <GlassFilters
+          id={filterId}
+          width={width}
+          height={sat}
+          circle={sat}
+          circles={circleLens}
+          capsule={bubbleLens ? box.w : 0}
+          blur={g.blur}
+          saturate={g.saturate}
+          refraction={g.refraction}
+          dispersion={dispersion}
+          masks={masks}
+        />
+      )}
+
+      {top ? (
+        // At regular width the bar is a band across the window: the edges at
+        // its margins, the tabs centred between them. Hidden slides the whole
+        // band off the top edge, shrinking a little as it goes.
+        <motion.div
+          // Keyed apart from the pill: React would otherwise reuse the pill's
+          // element here when the placement flips, and Motion would carry the
+          // pill's last width onto the band.
+          key="band"
+          className="anav__band"
+          initial={false}
+          animate={{ transform: hidden ? `translateY(${-(sat + 96)}px) scale(0.97)` : 'translateY(0px) scale(1)' }}
+          transition={shape}
+          style={{ transformOrigin: '50% 0%' }}
+        >
+          {leadingEdge}
+          {pillNode}
+          {trailingEdge}
+        </motion.div>
+      ) : (
+        pillNode
+      )}
     </div>
   );
 }

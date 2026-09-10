@@ -21,6 +21,8 @@ export type Environment = {
   /** Little memory or few cores: one lens is affordable, four are not. */
   lowEnd: boolean;
   reducedTransparency: boolean;
+  /** Any pointer is a finger: hit regions must stay at 44px, whatever the scale. */
+  touch: boolean;
 };
 
 /** Which shapes get a lens, and whether the pill's lens splits colour. */

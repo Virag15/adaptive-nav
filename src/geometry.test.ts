@@ -12,14 +12,16 @@ import {
 } from './geometry.ts';
 
 test('slot shrinks on narrow phones and stops at the preferred size on wide ones', () => {
-  assert.equal(solveSlot(430, 4, DEFAULT_METRICS), 56);
-  assert.equal(solveSlot(393, 4, DEFAULT_METRICS), 52);
-  assert.equal(solveSlot(320, 4, DEFAULT_METRICS), 40);
-  assert.equal(solveSlot(1024, 4, DEFAULT_METRICS), 56);
+  assert.equal(solveSlot(430, 4, DEFAULT_METRICS), 46);
+  assert.equal(solveSlot(393, 4, DEFAULT_METRICS), 46);
+  assert.equal(solveSlot(320, 4, DEFAULT_METRICS), 42);
+  assert.equal(solveSlot(1024, 4, DEFAULT_METRICS), 46);
 });
 
 test('more tabs means smaller slots at the same width', () => {
-  assert.ok(solveSlot(393, 5, DEFAULT_METRICS) < solveSlot(393, 4, DEFAULT_METRICS));
+  // At 393 the preferred slot is the limit either way; on a narrower phone the count bites.
+  assert.equal(solveSlot(393, 5, DEFAULT_METRICS), solveSlot(393, 4, DEFAULT_METRICS));
+  assert.ok(solveSlot(340, 5, DEFAULT_METRICS) < solveSlot(340, 4, DEFAULT_METRICS));
 });
 
 test('the full cluster — tabs, two circles, gaps — always fits inside the edge inset', () => {
@@ -47,7 +49,7 @@ test('buy pill spans a phone but caps on a tablet', () => {
   const sat = 64;
   assert.equal(pillWidth('buy', 0, slot, sat, 393, DEFAULT_METRICS), 393 - 20 - 2 * (64 + 8));
   assert.equal(pillWidth('buy', 0, slot, sat, 1024, DEFAULT_METRICS), 520 - 20 - 2 * (64 + 8));
-  assert.equal(pillWidth('tabs', 4, slot, sat, 393, DEFAULT_METRICS), 4 * 52 + 12);
+  assert.equal(pillWidth('tabs', 4, slot, sat, 393, DEFAULT_METRICS), 4 * 52 + 2 * DEFAULT_METRICS.pad);
 });
 
 test('minimized keeps only the active slot and the indicator packs left', () => {
@@ -93,6 +95,6 @@ test('select and confirm are wide; a toolbar folds the tabs but is only as wide 
   }
   assert.ok(!isWide('toolbar'));
   assert.deepEqual(visibleSlots(4, 'toolbar', false, 0), [false, false, false, false]);
-  // Three tools at slot 52 with 6px of pad either side.
-  assert.equal(pillWidth('toolbar', 3, 52, 64, 393, DEFAULT_METRICS), 3 * 52 + 12);
+  // Three tools at slot 52 with the pad either side.
+  assert.equal(pillWidth('toolbar', 3, 52, 64, 393, DEFAULT_METRICS), 3 * 52 + 2 * DEFAULT_METRICS.pad);
 });

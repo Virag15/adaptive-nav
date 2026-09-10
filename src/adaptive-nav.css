@@ -282,7 +282,7 @@
 }
 /* Pressed glass swells, every layer of it together. */
 .anav__satellite:has(.anav__circle:active) > :not(.anav__badge) { transform: scale(1.02); }
-.anav__circle svg { width: 25px; height: 25px; }
+.anav__circle svg { width: 24px; height: 24px; }
 .anav__circle[data-on] { color: var(--anav-on); }
 .anav__satellite > .anav__badge { z-index: 5; }
 
@@ -340,9 +340,11 @@
 }
 
 .anav__btn {
-  /* Slots move with transforms; only the outer glass changes its layout width. */
+  /* Slots move with transforms; only the outer glass changes its layout width.
+     A slot spans the pill's full height, so its hit region is the pill's, above
+     the 44pt the guideline asks for; the capsule marks the inset cell. */
   position: absolute;
-  top: var(--anav-pad, 6px);
+  top: 0;
   left: var(--anav-pad, 6px);
   z-index: 1;
   flex: none;
@@ -356,6 +358,14 @@
   touch-action: pan-y;
 }
 .anav__btn[data-active] { color: var(--anav-fg); }
+/* The hover fill, the capsule's shape, under the glyph. */
+.anav__btn::before {
+  content: '';
+  position: absolute;
+  inset: var(--anav-pad, 6px) 0;
+  border-radius: var(--anav-r-inner, 28px);
+  transition: background-color 160ms ease;
+}
 /* Labelled: the glyph gives up a little height and the name sits under it. */
 .anav[data-labelled] .anav__btn { align-content: center; row-gap: 1px; }
 .anav[data-labelled] .anav__magnet { row-gap: 1px; }
@@ -371,7 +381,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.anav__btn svg { width: 25px; height: 25px; }
+.anav__btn svg { width: 24px; height: 24px; }
 .anav[data-scrub] .anav__btn { cursor: grabbing; }
 
 /* toolbar: the screen's own actions in the same slots, nothing selected, so
@@ -382,6 +392,8 @@
 
 /* During a scrub the glyph responds subtly to the held capsule. */
 .anav__magnet {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   will-change: transform;
@@ -390,8 +402,8 @@
 .anav__glyph {
   display: grid;
   place-items: center;
-  width: 25px;
-  height: 25px;
+  width: 24px;
+  height: 24px;
   transition: transform 160ms var(--anav-ease), filter 160ms var(--anav-ease);
 }
 
@@ -662,11 +674,20 @@
   white-space: nowrap;
 }
 
-/* Either side of the pill is a row of distinct glass sections, the gap
-   between them the fixed space the guideline asks for between a symbol and a
-   text button. The leading row is anchored to the pill's edge and reads Back
-   then title, so Back stays at the far end and the title sits next to the
-   pill; the trailing row reads in order. */
+/* The band: the window's width, the tabs centred in it, an edge pinned to
+   each margin, the way the guideline draws a toolbar. */
+.anav__band {
+  position: relative;
+  width: 100%;
+  height: var(--anav-sat, 68px);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+/* Each edge is a row of distinct glass sections, the gap between them the
+   fixed space the guideline asks for between a symbol and a text button.
+   Leading reads Back then title from the margin in; trailing reads in order
+   toward the margin. */
 .anav__side {
   position: absolute;
   top: 0;
@@ -676,8 +697,8 @@
   gap: var(--anav-gap, 8px);
   pointer-events: none;
 }
-.anav__side--leading { right: calc(100% + var(--anav-gap, 8px)); }
-.anav__side--trailing { left: calc(100% + var(--anav-gap, 8px)); }
+.anav__side--leading { left: var(--anav-edge, 16px); }
+.anav__side--trailing { right: var(--anav-edge, 16px); }
 .anav__side .anav__satellite {
   position: relative;
   left: auto;
@@ -700,7 +721,7 @@
 .anav__item {
   display: flex;
   align-items: center;
-  height: calc(100% - var(--anav-pad, 6px) * 2);
+  height: 100%;
 }
 /* The title, inline with the controls: a word or a short phrase. */
 .anav__title {
@@ -720,7 +741,7 @@
   display: grid;
   place-items: center;
   height: 100%;
-  min-width: calc(var(--anav-sat, 68px) - var(--anav-pad, 6px) * 2);
+  min-width: 44px;
   padding: 0 4px;
   border-radius: var(--anav-r-inner, 28px);
   color: var(--anav-fg);
@@ -772,10 +793,26 @@
   transition: filter 160ms ease, transform 160ms var(--anav-ease);
 }
 
+/* A pointer alone (a Mac): the compact scale of its toolbars, whose symbols
+   and type are smaller than a finger needs. */
+.anav[data-placement='top'][data-input='pointer'] .anav__glyph,
+.anav[data-placement='top'][data-input='pointer'] .anav__btn svg,
+.anav[data-placement='top'][data-input='pointer'] .anav__circle svg,
+.anav[data-placement='top'][data-input='pointer'] .anav__iconButton svg {
+  width: 18px;
+  height: 18px;
+}
+.anav[data-placement='top'][data-input='pointer'] .anav__title,
+.anav[data-placement='top'][data-input='pointer'] .anav__quiet,
+.anav[data-placement='top'][data-input='pointer'] .anav__prominent,
+.anav[data-placement='top'][data-input='pointer'] .anav__input {
+  font-size: 13px;
+}
+
 /* A pointer: the hover states a Mac expects, as light fills within the
    section, which the guideline says is the container. */
 @media (hover: hover) and (pointer: fine) {
-  .anav__btn:not([data-active]):hover { background: color-mix(in srgb, var(--anav-fg) 6%, transparent); }
+  .anav__btn:not([data-active]):hover::before { background: color-mix(in srgb, var(--anav-fg) 6%, transparent); }
   .anav__iconButton:hover,
   .anav__quiet:hover { background: color-mix(in srgb, var(--anav-fg) 8%, transparent); }
   .anav__circle:hover {
@@ -789,17 +826,17 @@
 .anav__badge {
   position: absolute;
   /* Pinned to the glyph's corner, whatever the slot or circle size. */
-  top: calc(50% - 17.5px);
-  right: calc(50% - 17.5px);
-  min-width: 17px;
-  height: 17px;
-  padding: 0 5px;
+  top: calc(50% - 16px);
+  right: calc(50% - 16px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4.5px;
   border-radius: 999px;
   background: var(--anav-badge);
   color: var(--anav-badge-fg);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 17px;
+  line-height: 16px;
   text-align: center;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);

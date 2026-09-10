@@ -21,6 +21,6 @@ export type { Tone, ToneSetting } from './tone';
 export { resolveQuality, isChromium, isLowEnd } from './quality';
 export type { Environment, Quality, Rendition } from './quality';
 export { useEnvironment } from './useEnvironment';
-export { REGULAR_MIN, TOP_METRICS, resolvePlacement } from './placement';
+export { REGULAR_MIN, TOP_METRICS, TOP_POINTER_METRICS, TOP_TOUCH_METRICS, resolvePlacement } from './placement';
 export type { Placement, PlacementSetting } from './placement';
 export { usePlacement } from './usePlacement';
