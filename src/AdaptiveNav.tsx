@@ -39,11 +39,14 @@ import {
   visibleSlots,
 } from './geometry';
 import {
+  EASE_OUT_CSS,
   FADE_IN,
   FADE_OUT,
   GLYPH,
   PRESS_SPRING,
   RELEASE_SPRING,
+  SECTION_SLIDE_MS,
+  SECTION_STAGGER,
   SELECTION_SPRING,
   SHAPE_SPRING,
   STRETCH_SPRING,
@@ -202,6 +205,9 @@ const FIELD_MIN = 140;
 const FIELD_MAX = 260;
 
 /** How the band fits its window: the cell, the widest name's cell, whether names show, whether the title shows. */
+/** Marks the slide so a new one can replace it rather than add to it. */
+const SLIDE = 'anav-slide';
+
 type TopFit = {
   pitch: number;
   widest: number;
@@ -593,6 +599,83 @@ export function AdaptiveNav({
   // have settled; transforms do not resize, so the enter and exit animations
   // cost nothing here.
   const [fitTick, setFitTick] = useState(0);
+  /**
+   * Where each section sat last time we looked. A section leaving the row is
+   * removed once its own exit finishes, and the row reflows in that one frame
+   * — three circles crossing 256px between two frames, at the moment the eye
+   * has already decided the move is over. So every section that stays is slid
+   * from where it was to where it now is, on the compositor: an added
+   * transform, so it layers over the one Motion is holding rather than
+   * fighting it.
+   */
+  const slotLefts = useRef(new Map<string, number>());
+  const calmRef = useRef(false);
+  /** The sections this render put on the edges; anything else in the DOM is on its way out. */
+  const shownSlots = useRef(new Set<string>());
+  shownSlots.current = new Set<string>();
+  const slotted = (name: string) => {
+    shownSlots.current.add(name);
+    return name;
+  };
+  const slide = useRef<(animate: boolean) => void>(() => {});
+  slide.current = (animate: boolean) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const next = new Map<string, number>();
+    for (const side of root.querySelectorAll<HTMLElement>('.anav__side')) {
+      // The side is pinned to a margin and never transformed, so its own rect
+      // is a true layout position; offsetLeft inside it is one too. A section's
+      // rect is not: it carries the transform Motion holds and whatever slide
+      // is still in flight, so measuring that would chase a moving target and
+      // stack one correction on another.
+      const base = side.getBoundingClientRect().left;
+      for (const el of side.querySelectorAll<HTMLElement>('[data-slot]')) {
+        const name = el.dataset.slot;
+        if (!name) continue;
+        // A section on its way out keeps its space until its own exit ends,
+        // which holds the row still for a beat and then moves it — two
+        // movements where the eye expects one. Taken out of the flow the
+        // moment it starts leaving, the row reaches its new shape at once and
+        // the section fades out over the top of it.
+        if (!shownSlots.current.has(name)) {
+          if (el.style.position !== 'absolute') {
+            el.style.left = `${el.offsetLeft}px`;
+            el.style.position = 'absolute';
+          }
+          continue;
+        }
+        const x = base + el.offsetLeft;
+        next.set(name, x);
+        const was = slotLefts.current.get(name);
+        if (!animate || was === undefined || Math.abs(was - x) <= 0.5) continue;
+        // A slide already in flight has the section somewhere between its old
+        // place and its new one. Its offset has to be carried into the next
+        // one, or replacing it snaps the section to where the layout says it
+        // is — which is the same jump, one frame later.
+        const inFlight = parseFloat(getComputedStyle(el).translate) || 0;
+        for (const running of el.getAnimations()) if (running.id === SLIDE) running.cancel();
+        // `translate` rather than `transform`: it is its own property, so it
+        // composes with the transform Motion holds instead of fighting it, and
+        // it can be set from here. Setting it now matters — an animation
+        // created in this callback does not reach the paint that follows, so
+        // without the inline seed the reflow shows for one frame before the
+        // slide starts undoing it, which is the whole of what reads as a jump.
+        const by = was - x + inFlight;
+        el.style.translate = `${by}px`;
+        const moved = el.animate?.([{ translate: `${by}px` }, { translate: '0px' }], {
+          duration: SECTION_SLIDE_MS,
+          easing: EASE_OUT_CSS,
+        });
+        if (moved) {
+          moved.id = SLIDE;
+          moved.finished.then(() => { el.style.translate = ''; }, () => {});
+        } else {
+          el.style.translate = '';
+        }
+      }
+    }
+    slotLefts.current = next;
+  };
   useEffect(() => {
     const root = rootRef.current;
     if (!top || !root || typeof ResizeObserver === 'undefined') return;
@@ -600,7 +683,16 @@ export function AdaptiveNav({
     if (!sides.length) return;
     const ro = new ResizeObserver(() => setFitTick((n) => n + 1));
     sides.forEach((el) => ro.observe(el));
-    return () => ro.disconnect();
+    // A section is removed once its own exit finishes, and the row reflows in
+    // that frame. A resize callback arrives a frame later, which is one frame
+    // of the row visibly jumping; a mutation callback is a microtask, so it
+    // runs before the layout that follows is ever painted.
+    const mo = new MutationObserver(() => slide.current(!calmRef.current));
+    sides.forEach((el) => mo.observe(el, { childList: true }));
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
   }, [top]);
   useLayoutEffect(() => {
     void fitTick;
@@ -671,6 +763,10 @@ export function AdaptiveNav({
         : { pitch, widest, labels, title: showTitle, field: showField, nonField, shift },
     );
   });
+  useLayoutEffect(() => {
+    calmRef.current = !top || reduceMotion || keyboardInput;
+    slide.current(!calmRef.current);
+  });
   const showLabel = labelled || (top && topFit.labels);
   const topPitch = topFit.pitch;
   const width = top
@@ -704,18 +800,25 @@ export function AdaptiveNav({
   // Remember the destination, so clearing a preview does not restart the
   // release spring and discard the velocity that the finger handed it.
   const destination = useRef<number | null>(capsuleTarget);
+  const markedIndex = useRef(activeIndex);
   useLayoutEffect(() => {
     // While the finger holds the capsule, it alone decides where x goes.
     if (press.current?.scrub) return;
     if (reduceMotion || keyboardInput) {
       x.jump(capsuleTarget);
       destination.current = capsuleTarget;
+      markedIndex.current = activeIndex;
       return;
     }
     if (destination.current === capsuleTarget) return;
+    // Two different moves share this one value. Answering a selection is the
+    // calm one people scrub against; riding a cell that changed width under it
+    // is the band reshaping, and it should be over as fast as the rest of it.
+    const selecting = markedIndex.current !== activeIndex;
     destination.current = capsuleTarget;
-    animate(x, capsuleTarget, SELECTION_SPRING);
-  }, [capsuleTarget, scrubbing, x, reduceMotion, keyboardInput]);
+    markedIndex.current = activeIndex;
+    animate(x, capsuleTarget, selecting ? SELECTION_SPRING : SHAPE_SPRING);
+  }, [capsuleTarget, activeIndex, scrubbing, x, reduceMotion, keyboardInput]);
 
   // Speed becomes shape: the capsule lengthens along its travel and thins to
   // keep its area, so a fast pass reads as motion rather than a strobe of
@@ -1077,6 +1180,7 @@ export function AdaptiveNav({
     <button
       type="button"
       className="anav__iconButton"
+      data-id={item.id}
       aria-label={item.label}
       aria-pressed={item.active}
       data-on={item.active || undefined}
@@ -1090,7 +1194,7 @@ export function AdaptiveNav({
     </button>
   );
   /** A symbol action as its own circle, the shape it has on a phone. */
-  const circleAction = (item: NavAction, tag: string) => (
+  const circleAction = (item: NavAction, tag: string, slot: string, delay = 0) => (
     <Satellite
       key={`solo:${item.id}`}
       side="trailing"
@@ -1098,11 +1202,14 @@ export function AdaptiveNav({
       reduce={calm}
       lens={circleLens}
       tag={tag}
+      slot={slotted(slot)}
+      delay={delay}
       badge={item.badge ? <Badge count={item.badge} reduce={reduceMotion} /> : undefined}
     >
       <button
         type="button"
         className="anav__circle"
+        data-id={item.id}
         aria-label={item.label}
         aria-pressed={item.active}
         data-on={item.active || undefined}
@@ -1114,7 +1221,7 @@ export function AdaptiveNav({
     </Satellite>
   );
   const back = pushed ? (
-    <Satellite key="back" side="leading" tuck={sat + m.gap} reduce={reduceMotion || keyboardInput} lens={circleLens}>
+    <Satellite key="back" side="leading" slot={slotted('back')} tuck={sat + m.gap} reduce={reduceMotion || keyboardInput} lens={circleLens}>
       <button type="button" className="anav__circle" aria-label={closing ? L.close : L.back} onClick={onBack}>
         {backIcon ?? (closing ? <IconClear /> : <IconBack />)}
       </button>
@@ -1128,7 +1235,7 @@ export function AdaptiveNav({
             <AnimatePresence initial={false}>
               {back}
               {heading && topFit.title && (
-                <Satellite key="title" side="leading" group tuck={sat + m.gap} reduce={calm} lens={false}>
+                <Satellite key="title" side="leading" group slot={slotted('title')} delay={SECTION_STAGGER} tuck={sat + m.gap} reduce={calm} lens={false}>
                   <span className="anav__surface" aria-hidden />
                   <div className="anav__row">
                     <span className="anav__title" aria-live={mode === 'select' && !title ? 'polite' : undefined}>
@@ -1140,8 +1247,8 @@ export function AdaptiveNav({
             </AnimatePresence>
           </div>
   ) : null;
-  const section = (key: string, tag: string, className: string | undefined, children: ReactNode) => (
-    <Satellite key={key} side="trailing" group className={className} tag={tag} tuck={sat + m.gap} reduce={calm} lens={false}>
+  const section = (key: string, tag: string, className: string | undefined, children: ReactNode, delay = 0) => (
+    <Satellite key={key} side="trailing" group className={className} tag={tag} slot={slotted(key)} delay={delay} tuck={sat + m.gap} reduce={calm} lens={false}>
       <span className="anav__surface" aria-hidden />
       {children}
     </Satellite>
@@ -1152,7 +1259,7 @@ export function AdaptiveNav({
     // secondary, and last the one prominent action, its whole section tinted.
     <div className="anav__side anav__side--trailing">
             <AnimatePresence initial={false}>
-              {trailing?.map((item) => circleAction(item, '*'))}
+              {trailing?.map((item, i) => circleAction(item, '*', `trail:${item.id}`, Math.min(i, 2) * SECTION_STAGGER))}
               {toolbar &&
                 tools?.length &&
                 section(
@@ -1168,8 +1275,9 @@ export function AdaptiveNav({
                       ))}
                     </AnimatePresence>
                   </div>,
+                  SECTION_STAGGER,
                 )}
-              {action && circleAction(action, '*')}
+              {action && circleAction(action, '*', 'action', SECTION_STAGGER)}
               {(searching || (persistentField && topFit.field)) &&
                 section(
                   'field',
@@ -1178,6 +1286,7 @@ export function AdaptiveNav({
                   <div className="anav__row anav__fieldRow" style={{ width: fieldWidth }}>
                     {field}
                   </div>,
+                  SECTION_STAGGER,
                 )}
               {mode === 'confirm' &&
                 confirm?.secondary &&
@@ -1190,8 +1299,10 @@ export function AdaptiveNav({
                       {confirm.secondary.label}
                     </button>
                   </div>,
+                  SECTION_STAGGER,
                 )}
-              {prominent && section(`prominent:${mode}`, mode, 'anav__satellite--prominent', <div className="anav__row">{prominent}</div>)}
+              {prominent &&
+                section(`prominent:${mode}`, mode, 'anav__satellite--prominent', <div className="anav__row">{prominent}</div>, SECTION_STAGGER * 2)}
             </AnimatePresence>
           </div>
   ) : null;
@@ -1285,6 +1396,7 @@ export function AdaptiveNav({
               key={tool.id}
               type="button"
               className="anav__btn anav__tool"
+              data-id={tool.id}
               aria-label={tool.label}
               aria-pressed={tool.active}
               aria-hidden={!toolsInTrack || undefined}
@@ -1376,6 +1488,7 @@ export function AdaptiveNav({
                 <button
                   type="button"
                   className="anav__circle"
+                  data-id={action.id}
                   aria-label={action.label}
                   aria-pressed={action.active}
                   data-on={action.active || undefined}

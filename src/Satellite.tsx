@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
-import { EMERGE_SPRING, FADE_IN, FADE_OUT, RETREAT_SPRING } from './springs';
+import { FADE_OUT, SECTION_IN, SECTION_OUT } from './springs';
 
 /**
  * A glass body that lives just outside one end of the pill: a circle, or at
@@ -22,6 +22,8 @@ export function Satellite({
   group = false,
   className,
   tag,
+  slot,
+  delay = 0,
   badge,
   children,
 }: {
@@ -36,6 +38,10 @@ export function Satellite({
   className?: string;
   /** What the body belongs to, so a measurement can tell a section on its way out from one that is staying. */
   tag?: string;
+  /** A stable name for this body, so the bar can slide it when a sibling opens a gap beside it. */
+  slot?: string;
+  /** Held back this long, so a row of sections arrives as one movement rather than at once. */
+  delay?: number;
   badge?: ReactNode;
   children: ReactNode;
 }) {
@@ -47,16 +53,17 @@ export function Satellite({
     <motion.div
       className={`anav__satellite anav__satellite--${side}${group ? ' anav__satellite--group' : ''}${className ? ` ${className}` : ''}`}
       data-for={tag}
+      data-slot={slot}
       initial={{ opacity: 0, transform: tucked }}
       animate={{
         opacity: 1,
         transform: out,
-        transition: { transform: reduce ? { duration: 0 } : EMERGE_SPRING, opacity: FADE_IN },
+        transition: reduce ? { duration: 0 } : { ...SECTION_IN, delay },
       }}
       exit={{
         opacity: 0,
         transform: tucked,
-        transition: { transform: reduce ? { duration: 0 } : RETREAT_SPRING, opacity: FADE_OUT },
+        transition: reduce ? { duration: 0 } : { transform: SECTION_OUT, opacity: FADE_OUT },
       }}
     >
       {/* Siblings of the content, not children: a backdrop filter only sees what

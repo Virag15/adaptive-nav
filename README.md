@@ -288,7 +288,19 @@ staying are counted, so a section on its way out never flickers the fit. The
 edges are watched with a `ResizeObserver` too: sections arrive and leave
 inside `AnimatePresence`, which re-renders itself and not the bar, so a fit
 measured while one was still on its way out would otherwise never be
-corrected. The band's edges are pinned to the window's margins and the tabs are
+corrected.
+
+A mode change moves several sections at once, and it has to read as one
+movement rather than a row of things settling at their own pace. Three rules
+get it there. A section that is leaving is taken out of the flow the moment it
+starts to go, so the row reaches its new shape immediately instead of holding
+a gap until the exit finishes. A section that stays is slid from where it was
+to where it now is, on the `translate` property, which composes with the
+transform Motion holds rather than fighting it, seeded inline so the
+correction is in the very paint that follows the reflow. And the removals are
+caught with a `MutationObserver`, whose callback is a microtask: a resize
+callback arrives a frame later, and that frame is a visible jump. Sections
+enter on a 180ms ease-out with a 30ms stagger, and leave in 120ms. The band's edges are pinned to the window's margins and the tabs are
 centred between them, as the guideline draws a toolbar. Every cell is one
 width, the widest name's, which is what lets the capsule, the scrub and the
 magnet keep the arithmetic of a compact pill.
