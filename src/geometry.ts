@@ -60,6 +60,18 @@ export function capsuleRadii(satellite: number, pad: number): { outer: number; i
 }
 
 /**
+ * The modes where the pill spans the screen and the tabs fold away: the call
+ * to action and the search field. `hidden` keeps the tab layout, so the bar
+ * comes back the shape it left.
+ *
+ * Input: 'buy'     Output: true
+ * Input: 'hidden'  Output: false
+ */
+export function isWide(mode: NavMode): boolean {
+  return mode === 'buy' || mode === 'search';
+}
+
+/**
  * Which tabs keep their width. Hidden slots collapse to zero so whatever remains
  * packs left, which is what lets the indicator target stay a simple product.
  */
@@ -70,7 +82,7 @@ export function visibleSlots(
   activeIndex: number,
 ): boolean[] {
   return Array.from({ length: count }, (_, i) => {
-    if (mode === 'buy') return false;
+    if (isWide(mode)) return false;
     if (minimized) return i === activeIndex;
     return true;
   });
@@ -84,12 +96,13 @@ export function indicatorOffset(visible: boolean[], activeIndex: number, slot: n
 }
 
 /**
- * Buy mode: full width less the insets and the two circles, so the call to
- * action never collides with Back or the action. Otherwise: the visible slots
- * plus the pill's padding.
+ * Buy and search: full width less the insets and the two circles, so the call
+ * to action or the field never collides with Back or the action. Otherwise:
+ * the visible slots plus the pill's padding.
  *
- * Input: ('tabs', 4, 52, 64, 393, DEFAULT_METRICS)  Output: 220
- * Input: ('buy', 0, 52, 64, 393, DEFAULT_METRICS)   Output: 229
+ * Input: ('tabs', 4, 52, 64, 393, DEFAULT_METRICS)    Output: 220
+ * Input: ('buy', 0, 52, 64, 393, DEFAULT_METRICS)     Output: 229
+ * Input: ('search', 0, 52, 64, 393, DEFAULT_METRICS)  Output: 229
  */
 export function pillWidth(
   mode: NavMode,
@@ -99,7 +112,7 @@ export function pillWidth(
   viewportWidth: number,
   m: NavMetrics,
 ): number {
-  if (mode === 'buy') {
+  if (isWide(mode)) {
     return Math.min(viewportWidth, m.buyMaxWidth) - m.buyInset * 2 - (satellite + m.gap) * 2;
   }
   return visibleCount * slot + m.pad * 2;

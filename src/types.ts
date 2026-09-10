@@ -15,8 +15,12 @@ export type TabOption = {
  *           The screen may hang an action circle off the right end.
  * buy     — a product: the same two circles, but the pill itself becomes the
  *           call to action.
+ * search  — the pill becomes a search field, with Back to leave it; the bar
+ *           lifts above the on-screen keyboard.
+ * hidden  — the whole cluster slides off the bottom of the screen and is inert,
+ *           for a full-screen gallery or a player; it keeps its shape for the return.
  */
-export type NavMode = 'tabs' | 'context' | 'buy';
+export type NavMode = 'tabs' | 'context' | 'buy' | 'search' | 'hidden';
 
 /** The right-hand circle. The screen decides what it is: bag, save, share… */
 export type NavAction = {
@@ -38,6 +42,17 @@ export type BuyAction = {
   onPress: () => void;
 };
 
+/** The field the pill becomes in `search` mode. Controlled: the host owns the text. */
+export type SearchField = {
+  value: string;
+  onChange: (value: string) => void;
+  /** Enter, or the keyboard's search key. */
+  onSubmit?: (value: string) => void;
+  placeholder?: string;
+  /** Accessible name of the field; defaults to `labels.search`. */
+  label?: string;
+};
+
 /** Every string assistive tech reads. Defaults are English; pass your own for other locales. */
 export type NavLabels = {
   /** Accessible name of the Back circle. */
@@ -46,6 +61,10 @@ export type NavLabels = {
   sections: string;
   /** Confirmation after a buy press when `buy.done` is not given. */
   done: string;
+  /** Accessible name and placeholder of the search field when the host gives none. */
+  search: string;
+  /** Accessible name of the button that empties the search field. */
+  clear: string;
   /** What assistive tech reads for a badge count. */
   badge: (count: number) => string;
   /** The active tab's name while the bar is minimized, so the extra tap is explained. */

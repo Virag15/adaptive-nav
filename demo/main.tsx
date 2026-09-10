@@ -37,10 +37,13 @@ const TABS: TabOption[] = [
   { id: 'd', label: 'Delta', Icon: Dot },
 ];
 
+const MODES: NavMode[] = ['tabs', 'context', 'buy', 'search', 'hidden'];
 const PRESETS = Object.keys(GLASS_PRESETS) as GlassPreset[];
 const INDICATORS: IndicatorStyle[] = ['capsule', 'dot', 'glow', 'lift'];
 const DARK_BASE = '#1c1c1e';
 const LIGHT_BASE = '#fff';
+/** The playground opens on the material this bar is about. */
+const FIRST_PRESET: GlassPreset = 'liquid';
 
 /** Sliders over the glass knobs; each writes straight to the global material. */
 const KNOBS: { key: keyof GlassConfig; label: string; min: number; max: number; step: number }[] = [
@@ -62,9 +65,10 @@ function Playground() {
   const [small, setSmall] = useState(false);
   const [min, setMin] = useState(false);
   const [dark, setDark] = useState(false);
-  const [preset, setPreset] = useState<GlassPreset>('frosted');
+  const [preset, setPreset] = useState<GlassPreset>(FIRST_PRESET);
   const [indicator, setIndicator] = useState<IndicatorStyle>('capsule');
   const [hue, setHue] = useState(252);
+  const [query, setQuery] = useState('');
   const [log, setLog] = useState<string[]>([]);
   const note = (s: string) => setLog((l) => [...l.slice(-5), s]);
   const g = useGlass();
@@ -72,15 +76,14 @@ function Playground() {
   const applyPreset = (p: GlassPreset, isDark = dark) => {
     setPreset(p);
     setGlobalGlass(p);
-    // Smoke is dark glass on purpose; every other preset follows the page's theme.
-    if (isDark && p !== 'smoke') setGlobalGlass({ base: DARK_BASE });
+    if (isDark) setGlobalGlass({ base: DARK_BASE });
   };
 
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
     document.documentElement.classList.toggle('dark', next);
-    setGlobalGlass({ base: next || preset === 'smoke' ? DARK_BASE : LIGHT_BASE });
+    setGlobalGlass({ base: next ? DARK_BASE : LIGHT_BASE });
   };
 
   return (
@@ -88,7 +91,7 @@ function Playground() {
       <div className="panel">
         <div className="row">
           <b>mode</b>
-          {(['tabs', 'context', 'buy'] as const).map((m) => (
+          {MODES.map((m) => (
             <button key={m} id={`to-${m}`} aria-pressed={mode === m} onClick={() => setMode(m)}>
               {m}
             </button>
@@ -154,8 +157,9 @@ function Playground() {
           ))}
         </div>
         <p className="note">
-          Drag sideways across the tabs to scrub; flick to throw the indicator. Refraction needs a
-          browser that applies SVG filters to a backdrop (Chromium); elsewhere the rim carries the glass.
+          Drag sideways across the tabs to scrub; flick to throw the indicator; press and hold to
+          see the bubble swell. Refraction needs a browser that applies SVG filters to a backdrop
+          (Chromium); elsewhere the lit rim carries the glass.
         </p>
         <pre id="log">{log.join('\n')}</pre>
       </div>
@@ -163,9 +167,9 @@ function Playground() {
       <div className="stage">
         <h1 className="headline">Glass over<br />whatever is<br />underneath.</h1>
         <p className="copy">
-          Scroll so the bar crosses the tiles, the stripes and the grid. Frosted glass blurs them,
-          clear glass keeps their edges and bends them at the rim, tinted glass soaks up the hue
-          slider. Every preset is the same nine numbers.
+          Scroll so the bar crosses the tiles, the stripes and the grid. The middle of the slab is
+          frosted; at the lip the frost thins, the backdrop bends inward, and light catches the
+          edge. Every preset is the same nine numbers.
         </p>
         <div className="tiles">
           {TILE_HUES.map((h, i) => (
@@ -179,9 +183,10 @@ function Playground() {
         <div className="stripes" />
         <div className="grid" />
         <p className="copy">
-          The lens only bends the outer third of the pill, and only inward: a backdrop filter can
-          see nothing beyond its own edge, so a sample fetched from outside would come back empty.
-          Chromatic dispersion splits that bend into three passes, one per channel.
+          The lens follows a traced ray: nothing bends at the lip itself, the pull peaks just
+          inside it where the edge is steepest, then eases off toward the flat top. It only ever
+          pulls inward, because a backdrop filter can see nothing beyond its own edge. Dispersion
+          splits that pull into three passes, one per channel.
         </p>
         <div className="tiles">
           {TILE_HUES.slice()
@@ -195,7 +200,7 @@ function Playground() {
             ))}
         </div>
         <div className="stripes" />
-        <h1 className="headline">Scrub it.<br />Flick it.<br />Tint it.</h1>
+        <h1 className="headline">Scrub it.<br />Flick it.<br />Search it.</h1>
       </div>
 
       <AdaptiveNav
@@ -207,15 +212,28 @@ function Playground() {
           setTab(id);
           note('change:' + id);
         }}
-        onBack={() => note('back')}
+        onBack={() => {
+          note('back');
+          setMode('tabs');
+        }}
         action={
-          mode !== 'tabs'
-            ? { id: 'save', label: 'Save', Icon: Dot, active: on, onPress: () => setOn((o) => !o) }
+          mode === 'context' || mode === 'buy' || mode === 'search'
+            ? { id: 'save', label: 'Save', Icon: Dot, active: on, badge: 2, onPress: () => setOn((o) => !o) }
             : undefined
         }
         buy={
           mode === 'buy'
             ? { label: 'Add to bag', price: '₹1,000', done: 'Added!', onPress: () => note('buy') }
+            : undefined
+        }
+        search={
+          mode === 'search'
+            ? {
+                value: query,
+                placeholder: 'Search rings, chains…',
+                onChange: setQuery,
+                onSubmit: (q) => note('search:' + q),
+              }
             : undefined
         }
         metrics={small ? { slot: 44 } : undefined}
@@ -228,6 +246,8 @@ function Playground() {
     </>
   );
 }
+
+setGlobalGlass(FIRST_PRESET);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

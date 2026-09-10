@@ -5,6 +5,7 @@ import {
   capsuleRadii,
   indicatorBox,
   indicatorOffset,
+  isWide,
   pillWidth,
   solveSlot,
   visibleSlots,
@@ -69,4 +70,18 @@ test('every indicator style sits centred in the slot and shares its x with the c
   const glow = indicatorBox('glow', 56, 6);
   assert.equal(glow.dx + glow.w / 2, 28);
   assert.equal(glow.top + glow.h / 2, 6 + 28);
+});
+
+test('search folds the tabs away and spans the screen like buy; hidden keeps the tab layout', () => {
+  assert.deepEqual(visibleSlots(4, 'search', false, 1), [false, false, false, false]);
+  assert.equal(
+    pillWidth('search', 0, 52, 64, 393, DEFAULT_METRICS),
+    pillWidth('buy', 0, 52, 64, 393, DEFAULT_METRICS),
+  );
+  assert.deepEqual(visibleSlots(4, 'hidden', false, 1), [true, true, true, true]);
+  assert.equal(
+    pillWidth('hidden', 4, 52, 64, 393, DEFAULT_METRICS),
+    pillWidth('tabs', 4, 52, 64, 393, DEFAULT_METRICS),
+  );
+  assert.ok(isWide('buy') && isWide('search') && !isWide('context') && !isWide('hidden'));
 });

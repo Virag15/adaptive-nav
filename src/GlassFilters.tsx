@@ -1,12 +1,16 @@
 import { useMemo } from 'react';
-import { fillDisplacementMap, lensFor } from './refraction';
+import { fillDisplacementMap, fillRimMask, frostLip, lensFor } from './refraction';
 
 /**
- * Rasterises the displacement map for one shape as a PNG data URL, one map
- * pixel per CSS pixel. Empty on the server, where there is no canvas; the
- * filter then has no map and does nothing until the client renders.
+ * Rasterises one w×h image as a PNG data URL, one pixel per CSS pixel. Empty
+ * on the server, where there is no canvas; the filter or mask then has no
+ * image and does nothing until the client renders.
  */
-function mapUrl(w: number, h: number, r: number, band: number): string {
+function raster(
+  w: number,
+  h: number,
+  paint: (data: Uint8ClampedArray, W: number, H: number) => void,
+): string {
   if (typeof document === 'undefined') return '';
   const W = Math.max(1, Math.round(w));
   const H = Math.max(1, Math.round(h));
@@ -16,9 +20,37 @@ function mapUrl(w: number, h: number, r: number, band: number): string {
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
   const img = ctx.createImageData(W, H);
-  fillDisplacementMap(img.data, W, H, r, band);
+  paint(img.data, W, H);
   ctx.putImageData(img, 0, 0);
   return canvas.toDataURL('image/png');
+}
+
+const mapUrl = (w: number, h: number) =>
+  raster(w, h, (d, W, H) => fillDisplacementMap(d, W, H, Math.min(W, H) / 2, lensFor(H, 1).band));
+const maskUrl = (w: number, h: number, lip: number) =>
+  raster(w, h, (d, W, H) => fillRimMask(d, W, H, Math.min(W, H) / 2, lensFor(H, 1).band, lip));
+
+/**
+ * The masks that thin the frost toward the lip, one for the pill at its target
+ * width and one for the circles. Empty strings without a lens, which the
+ * stylesheet reads as no mask at all.
+ */
+export function useFrostMasks({
+  width,
+  height,
+  circle,
+  refraction,
+}: {
+  width: number;
+  height: number;
+  circle: number;
+  refraction: number;
+}): { pill: string; circle: string } {
+  const lip = frostLip(refraction);
+  const on = refraction > 0;
+  const pill = useMemo(() => (on ? maskUrl(width, height, lip) : ''), [on, width, height, lip]);
+  const disc = useMemo(() => (on ? maskUrl(circle, circle, lip) : ''), [on, circle, lip]);
+  return { pill, circle: disc };
 }
 
 /** Red and blue are bent this much less and more than green, per unit of dispersion. */
@@ -99,8 +131,8 @@ function Lens({
 }
 
 /**
- * The two SVG filters the refraction layers reference: one for the pill at its
- * current target width, one for the satellite circles. The pill's map is
+ * The SVG filters the lens layers reference: the pill at its current target
+ * width, the satellite circles, and the selection capsule. The pill's map is
  * regenerated when its target width changes; while the width spring is still
  * travelling the map covers the old width, and the sliver beyond it simply
  * goes unbent for a few frames.
@@ -110,6 +142,7 @@ export function GlassFilters({
   width,
   height,
   circle,
+  capsule,
   refraction,
   dispersion,
 }: {
@@ -117,13 +150,14 @@ export function GlassFilters({
   width: number;
   height: number;
   circle: number;
+  /** Diameter of the capsule's lens, or 0 for none. */
+  capsule: number;
   refraction: number;
   dispersion: number;
 }) {
-  const pill = lensFor(height, refraction);
-  const disc = lensFor(circle, refraction);
-  const pillMap = useMemo(() => mapUrl(width, height, height / 2, pill.band), [width, height, pill.band]);
-  const discMap = useMemo(() => mapUrl(circle, circle, circle / 2, disc.band), [circle, disc.band]);
+  const pillMap = useMemo(() => mapUrl(width, height), [width, height]);
+  const discMap = useMemo(() => mapUrl(circle, circle), [circle]);
+  const capMap = useMemo(() => (capsule > 0 ? mapUrl(capsule, capsule) : ''), [capsule]);
   return (
     <svg className="anav__filters" aria-hidden="true" focusable="false" width="0" height="0">
       <defs>
@@ -132,7 +166,7 @@ export function GlassFilters({
           map={pillMap}
           width={width}
           height={height}
-          scale={pill.scale}
+          scale={lensFor(height, refraction).scale}
           dispersion={dispersion}
         />
         <Lens
@@ -140,9 +174,19 @@ export function GlassFilters({
           map={discMap}
           width={circle}
           height={circle}
-          scale={disc.scale}
+          scale={lensFor(circle, refraction).scale}
           dispersion={dispersion}
         />
+        {capsule > 0 && (
+          <Lens
+            id={`${id}-capsule`}
+            map={capMap}
+            width={capsule}
+            height={capsule}
+            scale={lensFor(capsule, refraction).scale}
+            dispersion={dispersion}
+          />
+        )}
       </defs>
     </svg>
   );

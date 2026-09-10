@@ -1,17 +1,19 @@
-// Damping ratio ~0.8, response ~0.35s: settles rather than snaps, and stays
-// grabbable if you tap again mid-flight.
-export const SELECTION_SPRING = { type: 'spring', stiffness: 322, damping: 29, mass: 1 } as const;
-// Landing after a scrub or a flick: the finger had momentum, so a hair more
-// life (ratio ~0.72) reads as the capsule carrying it home.
-export const RELEASE_SPRING = { type: 'spring', stiffness: 380, damping: 28, mass: 1 } as const;
-// While the finger is down the capsule tracks it: response ~0.1s, so it feels
-// attached, with just enough lag to read as weight rather than a cursor.
-export const FOLLOW_SPRING = { type: 'spring', stiffness: 1600, damping: 80, mass: 1 } as const;
+// A tap carries no momentum, so the capsule travels to it almost critically
+// damped (ratio ~0.92, response ~0.35s): it settles, it does not wobble, and
+// it stays grabbable if you tap again mid-flight.
+export const SELECTION_SPRING = { type: 'spring', stiffness: 300, damping: 32, mass: 1 } as const;
+// Landing after a scrub or a flick: the finger had momentum, so a little life
+// (ratio ~0.68) reads as the capsule carrying it home.
+export const RELEASE_SPRING = { type: 'spring', stiffness: 360, damping: 26, mass: 1 } as const;
+// While the finger is down the capsule tracks it: response ~0.13s, critically
+// damped, so it feels attached with just enough lag to read as weight.
+export const FOLLOW_SPRING = { type: 'spring', stiffness: 1200, damping: 70, mass: 1 } as const;
 export const REDUCED_SPRING = { type: 'spring', stiffness: 2200, damping: 120, mass: 1 } as const;
-export const PRESS_SPRING = { stiffness: 700, damping: 32, mass: 0.6 } as const;
-// Smooths the velocity read before it becomes a stretch, so a jittery finger
-// does not make the capsule shiver.
-export const STRETCH_SPRING = { stiffness: 900, damping: 60, mass: 1 } as const;
+// The swell on press: quick, with a hint of bounce, like pressing a bubble.
+export const PRESS_SPRING = { stiffness: 600, damping: 26, mass: 0.6 } as const;
+// Speed becomes stretch through this; a ratio of ~0.72 lets the capsule wobble
+// once as it lands, the way jelly settles.
+export const STRETCH_SPRING = { stiffness: 700, damping: 38, mass: 1 } as const;
 // Pill and slot widths: critically damped, slightly quicker — a container
 // that overshoots reads as wobbly rather than alive.
 export const SHAPE_SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 1 } as const;
@@ -28,12 +30,15 @@ export const GLYPH = { duration: 0.18, ease: EASE_OUT } as const;
 /**
  * Where a flick would come to rest on its own: Apple's scroll deceleration,
  * so a throw lands on the tab the finger was headed for rather than the one it
- * happened to be over. 0.99 is the snappier of the two rates iOS uses.
+ * happened to be over. The rate is well below a scroll view's 0.99: a capsule
+ * snapping between slots should stay under a finger that was merely moving
+ * (~500 px/s stays on its slot) and only jump for a real flick (~900 px/s
+ * clears half a slot).
  *
- * Input: (600)   Output: ≈ 59.4  (px, at the default rate)
- * Input: (-300)  Output: ≈ -29.7
+ * Input: (600)   Output: ≈ 23.4  (px, at the default rate)
+ * Input: (-900)  Output: ≈ -35.1
  */
-export function project(velocity: number, decelerationRate = 0.99): number {
+export function project(velocity: number, decelerationRate = 0.975): number {
   return ((velocity / 1000) * decelerationRate) / (1 - decelerationRate);
 }
 

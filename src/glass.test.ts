@@ -15,7 +15,7 @@ test('every preset stays inside the ranges the stylesheet expects', () => {
 });
 
 test('a preset replaces every knob, a patch keeps the rest', () => {
-  assert.deepEqual(resolveGlass('smoke', GLASS_PRESETS.liquid), GLASS_PRESETS.smoke);
+  assert.deepEqual(resolveGlass('clear', GLASS_PRESETS.liquid), GLASS_PRESETS.clear);
   const patched = resolveGlass({ tintAmount: 0.3 }, DEFAULT_GLASS);
   assert.equal(patched.tintAmount, 0.3);
   assert.equal(patched.blur, DEFAULT_GLASS.blur);

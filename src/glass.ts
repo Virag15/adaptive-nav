@@ -5,11 +5,11 @@
  * can compute the tokens without rendering.
  */
 export interface GlassConfig {
-  /** The material's own colour, opaque: white for light glass, near-black for smoked. */
+  /** The material's own colour, opaque: white for light glass, near-black for dark screens. */
   base: string;
   /** How much of the backdrop the material covers, 0–1. */
   opacity: number;
-  /** Backdrop blur radius in px. */
+  /** Backdrop blur radius in px, across the middle; with a lens it thins toward the lip. */
   blur: number;
   /** Backdrop saturation; 1 leaves colours alone, 1.6 makes them sing through the frost. */
   saturate: number;
@@ -17,7 +17,7 @@ export interface GlassConfig {
   tint: string;
   /** How far toward the tint the material is pushed, 0–1. */
   tintAmount: number;
-  /** Strength of the lit edge and inner sheen that read as thickness, 0–1. */
+  /** Strength of the lit lip, the sheen and the edge glow that read as thickness, 0–1. */
   rim: number;
   /**
    * How much the backdrop bends at the rim, 0–1. Rendered with an SVG
@@ -29,68 +29,46 @@ export interface GlassConfig {
   dispersion: number;
 }
 
-export type GlassPreset = 'frosted' | 'clear' | 'liquid' | 'tinted' | 'smoke' | 'solid';
+export type GlassPreset = 'frosted' | 'clear' | 'liquid' | 'solid';
+
+const TINT = '#5433eb';
 
 export const GLASS_PRESETS: Record<GlassPreset, GlassConfig> = {
-  /** The original: milky, high blur, reads as a UI surface first and glass second. */
+  /** A UI surface first and glass second: milky, deep blur, no lens. */
   frosted: {
     base: '#fff',
-    opacity: 0.88,
-    blur: 20,
-    saturate: 1.6,
-    tint: '#5433eb',
+    opacity: 0.72,
+    blur: 24,
+    saturate: 1.8,
+    tint: TINT,
     tintAmount: 0,
-    rim: 0.35,
+    rim: 0.5,
     refraction: 0,
     dispersion: 0,
   },
-  /** Thin, mostly see-through; the rim does the work of separating it from the page. */
+  /** Thin and mostly see-through; the lit rim and a light lens separate it from the page. */
   clear: {
     base: '#fff',
-    opacity: 0.4,
+    opacity: 0.38,
     blur: 8,
-    saturate: 1.4,
-    tint: '#5433eb',
+    saturate: 1.5,
+    tint: TINT,
     tintAmount: 0,
-    rim: 0.8,
-    refraction: 0.55,
-    dispersion: 0,
+    rim: 0.9,
+    refraction: 0.6,
+    dispersion: 0.2,
   },
-  /** Barely there, a lens more than a surface: bends and fringes what passes under it. */
+  /** A thick slab: frosted through the middle, clear and bending at the lip, fringed. */
   liquid: {
     base: '#fff',
-    opacity: 0.22,
-    blur: 3,
-    saturate: 1.5,
-    tint: '#5433eb',
+    opacity: 0.3,
+    blur: 12,
+    saturate: 1.7,
+    tint: TINT,
     tintAmount: 0,
     rim: 1,
     refraction: 1,
-    dispersion: 0.6,
-  },
-  /** Coloured glass: the accent soaked into the material rather than painted on it. */
-  tinted: {
-    base: '#fff',
-    opacity: 0.72,
-    blur: 16,
-    saturate: 1.5,
-    tint: '#5433eb',
-    tintAmount: 0.45,
-    rim: 0.5,
-    refraction: 0.25,
-    dispersion: 0,
-  },
-  /** Smoked glass for dark screens. */
-  smoke: {
-    base: '#1c1c1e',
-    opacity: 0.78,
-    blur: 18,
-    saturate: 1.2,
-    tint: '#5433eb',
-    tintAmount: 0,
-    rim: 0.25,
-    refraction: 0.2,
-    dispersion: 0,
+    dispersion: 0.5,
   },
   /** No glass at all: a flat bar for hosts that want the shape without the material. */
   solid: {
@@ -98,7 +76,7 @@ export const GLASS_PRESETS: Record<GlassPreset, GlassConfig> = {
     opacity: 1,
     blur: 0,
     saturate: 1,
-    tint: '#5433eb',
+    tint: TINT,
     tintAmount: 0,
     rim: 0,
     refraction: 0,
@@ -116,7 +94,7 @@ export type GlassInput = GlassPreset | Partial<GlassConfig>;
  * clamped to the ranges the stylesheet expects, so a slider that drifts past
  * its end cannot produce an invalid token.
  *
- * Input: ('smoke', DEFAULT_GLASS)                      Output: GLASS_PRESETS.smoke
+ * Input: ('clear', DEFAULT_GLASS)                      Output: GLASS_PRESETS.clear
  * Input: ({ tintAmount: 0.3 }, DEFAULT_GLASS)          Output: frosted with tintAmount 0.3
  * Input: ({ opacity: 4 }, DEFAULT_GLASS)               Output: frosted with opacity 1
  */

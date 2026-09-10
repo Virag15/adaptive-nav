@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -20,13 +21,14 @@ import {
   useVelocity,
 } from 'motion/react';
 import { Satellite } from './Satellite';
-import { GlassFilters } from './GlassFilters';
-import { IconBack } from './icons';
+import { GlassFilters, useFrostMasks } from './GlassFilters';
+import { IconBack, IconClear, IconSearch } from './icons';
 import {
   DEFAULT_METRICS,
   capsuleRadii,
   indicatorBox,
   indicatorOffset,
+  isWide,
   pillWidth,
   solveSlot,
   visibleSlots,
@@ -49,7 +51,7 @@ import {
 } from './springs';
 import { glassVars, type GlassInput } from './glass';
 import { useGlass } from './useGlass';
-import type { BuyAction, NavAction, NavLabels, NavMode, TabOption } from './types';
+import type { BuyAction, NavAction, NavLabels, NavMode, SearchField, TabOption } from './types';
 
 export type AdaptiveNavProps = {
   mode: NavMode;
@@ -57,12 +59,14 @@ export type AdaptiveNavProps = {
   /** The id of the selected tab. */
   value: string;
   onChange: (id: string) => void;
-  /** Back circle press; only rendered in `context` and `buy` modes. */
+  /** Back circle press; rendered in `context`, `buy` and `search` modes. */
   onBack?: () => void;
   /** The right-hand circle, chosen by the screen. Omit for Back alone. */
   action?: NavAction;
   /** The call to action the pill becomes in `buy` mode. */
   buy?: BuyAction;
+  /** The field the pill becomes in `search` mode. */
+  search?: SearchField;
   /** Collapsed to the active section only, the way a tab bar folds away on scroll. */
   minimized?: boolean;
   /** Any tap or arrow key on the minimized bar asks to unfold rather than switching. */
@@ -87,6 +91,8 @@ const DEFAULT_LABELS: NavLabels = {
   back: 'Back',
   sections: 'Sections',
   done: 'Added',
+  search: 'Search',
+  clear: 'Clear',
   badge: (n) => `${n} items`,
   expandHint: (label) => `${label}, tap to show all sections`,
 };
@@ -98,8 +104,12 @@ const CONFIRM_MS = 1400;
 /** A phone-sized guess for the server render; the client measures on mount. */
 const SSR_VIEWPORT = 393;
 /** Velocity, in px/s, at which the travelling indicator reaches its full stretch. */
-const STRETCH_AT = 2400;
-const STRETCH_MAX = 0.18;
+const STRETCH_AT = 2000;
+const STRETCH_MAX = 0.22;
+/** The swell of a pressed bubble. */
+const PRESS_SCALE = 1.05;
+/** How much finger history feeds the release velocity. */
+const TRAIL_MS = 80;
 
 const POP_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 const POP: Record<'rest' | 'lift', Keyframe[]> = {
@@ -123,9 +133,6 @@ type Press = {
   /** Where the finger has put the capsule over the last few frames, for its velocity at release. */
   trail: { x: number; t: number }[];
 };
-
-/** How much finger history feeds the release velocity. */
-const TRAIL_MS = 80;
 
 /**
  * The finger's speed from its recent trail, in px/s. The capsule's own spring
@@ -152,6 +159,30 @@ function useViewportWidth() {
   return vw;
 }
 
+/**
+ * How far the on-screen keyboard has eaten into the viewport, in px, while
+ * `enabled`. A fixed bar sits at the bottom of the layout viewport, which the
+ * keyboard covers; the visual viewport says by how much.
+ */
+function useKeyboardInset(enabled: boolean) {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!enabled || !vv) return;
+    const sync = () =>
+      setInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+      setInset(0);
+    };
+  }, [enabled]);
+  return inset;
+}
+
 export function AdaptiveNav({
   mode,
   options,
@@ -160,6 +191,7 @@ export function AdaptiveNav({
   onBack,
   action,
   buy,
+  search,
   minimized = false,
   onExpand,
   glass,
@@ -181,8 +213,13 @@ export function AdaptiveNav({
   const [scrubbing, setScrubbing] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const reduceMotion = useReducedMotion() ?? false;
-  const pushed = mode !== 'tabs';
+  const wide = isWide(mode);
+  const hidden = mode === 'hidden';
+  const searching = mode === 'search';
+  /** Back is out whenever the bar is not at the home level. */
+  const pushed = mode === 'context' || wide;
   const trackRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const g = useGlass(glass);
   const lens = g.refraction > 0;
@@ -199,6 +236,7 @@ export function AdaptiveNav({
   // carry, so the resolved radii are applied as border radii rather than as
   // clipped paths.
   const { outer: outerRadius, inner: innerRadius } = capsuleRadii(sat, m.pad);
+  const keyboard = useKeyboardInset(searching);
 
   // Where the indicator is headed while a finger is down; not a commitment yet.
   const activeId = preview ?? value;
@@ -228,7 +266,8 @@ export function AdaptiveNav({
 
   // Speed becomes shape: the capsule lengthens along its travel and thins to
   // keep its area, so a fast pass reads as motion rather than a strobe of
-  // positions. Smoothed, so a jittery finger does not make it shiver.
+  // positions. Smoothed through an underdamped spring, so it settles with one
+  // small wobble, the way jelly lands.
   const velocity = useVelocity(x);
   const rawStretch = useTransform(velocity, (v) =>
     reduceMotion ? 1 : 1 + Math.min(Math.abs(v) / STRETCH_AT, STRETCH_MAX),
@@ -236,12 +275,13 @@ export function AdaptiveNav({
   const stretch = useSpring(rawStretch, STRETCH_SPRING);
   const scale = useSpring(1, PRESS_SPRING);
   useEffect(() => {
-    scale.set(pressed ? 0.9 : 1);
+    scale.set(pressed ? PRESS_SCALE : 1);
   }, [pressed, scale]);
   const scaleX = useTransform([scale, stretch], ([s, st]: number[]) => s * st);
   const scaleY = useTransform([scale, stretch], ([s, st]: number[]) => s / Math.sqrt(st));
   const box = indicatorBox(indicator, slot, m.pad);
   const capsuleX = useTransform(x, (v) => v + box.dx);
+  const showCapsule = !wide && indicator !== 'lift';
 
   // The glyph that has just become the selection lands with a small bounce.
   // Imperative, so the first paint does not pop and a re-render never replays it.
@@ -255,6 +295,13 @@ export function AdaptiveNav({
     const glyph = trackRef.current?.querySelector<HTMLElement>('[data-active] .anav__glyph');
     glyph?.animate?.(POP[indicator === 'lift' ? 'lift' : 'rest'], { duration: 380, easing: POP_EASE });
   }, [activeId, indicator, reduceMotion]);
+
+  // The field takes focus as the pill opens. Synchronously in the commit, so
+  // it still counts as part of the tap that asked for it and the keyboard comes up.
+  useLayoutEffect(() => {
+    if (searching) inputRef.current?.focus({ preventScroll: true });
+    else inputRef.current?.blur();
+  }, [searching]);
 
   // Confirmation reverts on its own; the bar should never be stuck on "Added".
   useEffect(() => {
@@ -323,7 +370,7 @@ export function AdaptiveNav({
     };
   }, [pressed]);
 
-  const canScrub = !minimized && mode !== 'buy' && options.length > 1;
+  const canScrub = !minimized && !wide && !hidden && options.length > 1;
 
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>, id: string) => {
     if (!e.isPrimary) return;
@@ -432,25 +479,37 @@ export function AdaptiveNav({
       [next]?.focus();
   };
 
+  const onSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') search?.onSubmit?.(search.value);
+    else if (e.key === 'Escape') onBack?.();
+  };
+
   const shape = reduceMotion ? { duration: 0 } : SHAPE_SPRING;
   const glyph = reduceMotion ? { duration: 0 } : GLYPH;
   const width = pillWidth(mode, visibleCount, slot, sat, vw, m);
+  const masks = useFrostMasks({ width, height: sat, circle: sat, refraction: g.refraction });
+  /** Only the travelling capsule is a bubble; a dot or a glow has no lip to bend at. */
+  const capsuleLens = lens && indicator === 'capsule' ? box.w : 0;
 
-  const badge = (count?: number) =>
+  const badgeCount = (count?: number) =>
     count ? (
-      <span className="anav__badge">
-        <span aria-hidden>{count}</span>
-        <span className="anav__sr">{L.badge(count)}</span>
+      <span className="anav__badge" aria-hidden>
+        {count}
       </span>
     ) : null;
+  const badgeText = (count?: number) => (count ? <span className="anav__sr">{L.badge(count)}</span> : null);
 
   return (
     <div
       className={className ? `anav ${className}` : 'anav'}
       data-mode={mode}
       data-minimized={minimized || undefined}
+      data-hidden={hidden || undefined}
       data-indicator={indicator}
+      data-pressed={pressed || undefined}
       data-scrub={scrubbing || undefined}
+      aria-hidden={hidden || undefined}
+      inert={hidden || undefined}
       style={{
         // A bar with its own material writes every token here, where the
         // composites are read, so the override stays scoped to this bar.
@@ -461,8 +520,12 @@ export function AdaptiveNav({
         ['--anav-gap' as string]: `${m.gap}px`,
         ['--anav-r-outer' as string]: `${outerRadius}px`,
         ['--anav-r-inner' as string]: `${innerRadius}px`,
+        ['--anav-keyboard' as string]: `${keyboard}px`,
         ['--anav-refract-pill' as string]: lens ? `url(#${filterId}-pill)` : 'none',
         ['--anav-refract-circle' as string]: lens ? `url(#${filterId}-circle)` : 'none',
+        ['--anav-refract-capsule' as string]: capsuleLens ? `url(#${filterId}-capsule)` : 'none',
+        ['--anav-frost-mask-pill' as string]: masks.pill ? `url(${masks.pill})` : 'none',
+        ['--anav-frost-mask-circle' as string]: masks.circle ? `url(${masks.circle})` : 'none',
       }}
     >
       {lens && (
@@ -471,14 +534,23 @@ export function AdaptiveNav({
           width={width}
           height={sat}
           circle={sat}
+          capsule={capsuleLens}
           refraction={g.refraction}
           dispersion={g.dispersion}
         />
       )}
 
-      <motion.div className="anav__pill" initial={false} animate={{ width }} transition={shape}>
+      <motion.div
+        className="anav__pill"
+        initial={false}
+        // Hidden slides the whole cluster below the screen edge, shadow included.
+        animate={{ width, y: hidden ? sat + 96 : 0 }}
+        transition={shape}
+      >
         {lens && <span className="anav__refract" aria-hidden />}
+        <span className="anav__frost" aria-hidden />
         <span className="anav__surface" aria-hidden />
+        <span className="anav__shine" aria-hidden />
 
         <AnimatePresence initial={false}>
           {pushed && (
@@ -494,18 +566,20 @@ export function AdaptiveNav({
           ref={trackRef}
           className="anav__track"
           aria-label={L.sections}
-          role={mode === 'buy' ? undefined : 'tablist'}
+          role={wide ? undefined : 'tablist'}
         >
           <motion.span
             className="anav__capsule"
             aria-hidden
             style={{ x: capsuleX, scaleX, scaleY, width: box.w, height: box.h, top: box.top }}
             initial={false}
-            animate={{ opacity: mode === 'buy' || indicator === 'lift' ? 0 : 1 }}
+            animate={{ opacity: showCapsule ? 1 : 0 }}
             transition={glyph}
-          />
+          >
+            {capsuleLens > 0 && <span className="anav__refract--capsule" />}
+          </motion.span>
           {options.map((tab, i) => {
-            const hidden = !visible[i];
+            const isHidden = !visible[i];
             const isValue = tab.id === value;
             const active = tab.id === activeId;
             const label = minimized && isValue ? L.expandHint(tab.label) : tab.label;
@@ -516,18 +590,18 @@ export function AdaptiveNav({
                 role="tab"
                 aria-selected={isValue}
                 aria-label={label}
-                aria-hidden={hidden || undefined}
-                tabIndex={hidden ? -1 : isValue ? 0 : -1}
+                aria-hidden={isHidden || undefined}
+                tabIndex={isHidden ? -1 : isValue ? 0 : -1}
                 data-active={active || undefined}
                 className="anav__btn"
                 initial={false}
                 animate={{
-                  width: hidden ? 0 : slot,
-                  opacity: hidden ? 0 : 1,
-                  scale: hidden ? 0.6 : 1,
+                  width: isHidden ? 0 : slot,
+                  opacity: isHidden ? 0 : 1,
+                  scale: isHidden ? 0.6 : 1,
                 }}
                 transition={shape}
-                style={{ height: slot, pointerEvents: hidden ? 'none' : 'auto' }}
+                style={{ height: slot, pointerEvents: isHidden ? 'none' : 'auto' }}
                 onPointerDown={(e) => onPointerDown(e, tab.id)}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
@@ -538,7 +612,8 @@ export function AdaptiveNav({
                 <span className="anav__glyph">
                   <tab.Icon />
                 </span>
-                {badge(tab.badge)}
+                {badgeCount(tab.badge)}
+                {badgeText(tab.badge)}
               </motion.button>
             );
           })}
@@ -573,11 +648,61 @@ export function AdaptiveNav({
               {showConfirmed ? (buy?.done ?? L.done) : ''}
             </span>
           </motion.button>
+
+          {/* Search mode only: the same growth, with a field inside. */}
+          <motion.div
+            className="anav__field"
+            aria-hidden={!searching || undefined}
+            initial={false}
+            animate={{ opacity: searching ? 1 : 0, scale: searching ? 1 : 0.92 }}
+            transition={{ scale: shape, opacity: searching ? FADE_IN : FADE_OUT }}
+            style={{ height: slot, pointerEvents: searching ? 'auto' : 'none' }}
+          >
+            <span className="anav__fieldIcon" aria-hidden>
+              <IconSearch />
+            </span>
+            <input
+              ref={inputRef}
+              className="anav__input"
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              tabIndex={searching ? 0 : -1}
+              aria-label={search?.label ?? L.search}
+              placeholder={search?.placeholder ?? L.search}
+              value={search?.value ?? ''}
+              onChange={(e) => search?.onChange(e.target.value)}
+              onKeyDown={onSearchKeyDown}
+            />
+            {searching && search?.value ? (
+              <button
+                type="button"
+                className="anav__clear"
+                aria-label={L.clear}
+                onClick={() => {
+                  search.onChange('');
+                  inputRef.current?.focus();
+                }}
+              >
+                <IconClear />
+              </button>
+            ) : null}
+          </motion.div>
         </nav>
 
         <AnimatePresence initial={false}>
           {action && (
-            <Satellite key={action.id} side="trailing" tuck={sat + m.gap} reduce={reduceMotion} lens={lens}>
+            <Satellite
+              key={action.id}
+              side="trailing"
+              tuck={sat + m.gap}
+              reduce={reduceMotion}
+              lens={lens}
+              badge={badgeCount(action.badge)}
+            >
               <button
                 type="button"
                 className="anav__circle"
@@ -587,7 +712,7 @@ export function AdaptiveNav({
                 onClick={action.onPress}
               >
                 <action.Icon />
-                {badge(action.badge)}
+                {badgeText(action.badge)}
               </button>
             </Satellite>
           )}
