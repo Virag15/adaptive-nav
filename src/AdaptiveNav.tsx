@@ -78,6 +78,15 @@ export type AdaptiveNavProps = {
   onBack?: () => void;
   /** The right-hand circle, chosen by the screen. Omit for Back alone. */
   action?: NavAction;
+  /**
+   * The app's own symbol actions, kept on the band's trailing edge in every
+   * mode at regular width: the items the guideline says must remain available
+   * whatever the screen is doing (saved, notifications, a More menu). They sit
+   * ahead of the field and the one prominent action, and carry badges. A
+   * compact pill has no trailing edge to hang them on, so there they are the
+   * screen's job — `action` for the one that matters, `tools` for the rest.
+   */
+  trailing?: NavAction[];
   /** The call to action the pill becomes in `buy` mode. */
   buy?: BuyAction;
   /** The field the pill becomes in `search` mode. */
@@ -186,7 +195,23 @@ const FIELD_MIN = 140;
 const FIELD_MAX = 260;
 
 /** How the band fits its window: the cell, the widest name's cell, whether names show, whether the title shows. */
-type TopFit = { pitch: number; widest: number; labels: boolean; title: boolean };
+type TopFit = {
+  pitch: number;
+  widest: number;
+  labels: boolean;
+  title: boolean;
+  /** Whether a persistent field still fits; the field of `search` mode is never dropped. */
+  field: boolean;
+  /** The trailing edge without the field: the sections the field has to share the side with. */
+  nonField: number;
+  /**
+   * How far the pill leaves the window's centre. Zero almost always: only when
+   * the edges have grown so wide that a pill at the 44px floor would run into
+   * one does it give up the centre, and then it centres in what is left rather
+   * than overlap. A hit region is never traded for symmetry.
+   */
+  shift: number;
+};
 
 const POP_EASE = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const BADGE_POP: Keyframe[] = [{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.45 }, { transform: 'scale(1)' }];
@@ -418,6 +443,7 @@ export function AdaptiveNav({
   onChange,
   onBack,
   action,
+  trailing,
   buy,
   search,
   tools,
@@ -464,6 +490,8 @@ export function AdaptiveNav({
   const wide = isWide(mode);
   const hidden = mode === 'hidden';
   const searching = mode === 'search';
+  /** The guideline's optional search field: on the trailing edge whatever the screen is doing. */
+  const persistentField = top && !!search?.persistent;
   const toolbar = mode === 'toolbar';
   // At the top the tabs stay through every mode and what a mode adds goes to
   // the trailing section, so the track there only ever holds the tabs.
@@ -521,13 +549,21 @@ export function AdaptiveNav({
   // minimized. It shifts by half a circle when only one end carries one, so
   // its leading edge stays beside Back.
   const leading = mode !== 'tabs';
-  const trailing = !!action;
+  const trailingCircle = !!action;
   // At regular width every cell is one width, the widest name's, measured
   // from stand-ins before paint. One pitch is what keeps the capsule, the
   // scrub and the magnet arithmetic the same as in a compact pill.
   /** The title on the leading edge at regular width; a selection's count stands in for it. */
   const heading = top ? (title ?? (mode === 'select' ? select?.label : undefined)) : undefined;
-  const [topFit, setTopFit] = useState<TopFit>({ pitch: TOP_PITCH_GUESS, widest: TOP_PITCH_GUESS, labels: true, title: true });
+  const [topFit, setTopFit] = useState<TopFit>({
+    pitch: TOP_PITCH_GUESS,
+    widest: TOP_PITCH_GUESS,
+    labels: true,
+    title: true,
+    field: true,
+    nonField: 0,
+    shift: 0,
+  });
   // The band must never overflow: the guideline leaves overflow menus to the
   // system and asks for layouts that do not need one, and it has the centre
   // give way before the edges. So, measured before paint: names beside
@@ -535,7 +571,23 @@ export function AdaptiveNav({
   // and only then narrower cells. The edges are pinned to the window's
   // margins and the pill is centred between them, as the guideline draws
   // them, so the pill's room is the window less twice the wider edge.
+  // Sections arrive and leave inside AnimatePresence, which re-renders itself
+  // and not this component, so a fit measured while one was still on its way
+  // out would never be corrected. Watch the edges rather than guess when they
+  // have settled; transforms do not resize, so the enter and exit animations
+  // cost nothing here.
+  const [fitTick, setFitTick] = useState(0);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!top || !root || typeof ResizeObserver === 'undefined') return;
+    const sides = [...root.querySelectorAll<HTMLElement>('.anav__side')];
+    if (!sides.length) return;
+    const ro = new ResizeObserver(() => setFitTick((n) => n + 1));
+    sides.forEach((el) => ro.observe(el));
+    return () => ro.disconnect();
+  }, [top]);
   useLayoutEffect(() => {
+    void fitTick;
     if (!top) return;
     const track = trackRef.current;
     const root = rootRef.current;
@@ -547,29 +599,60 @@ export function AdaptiveNav({
     const titleW = titleText ? Math.ceil(titleText) + TITLE_PAD * 2 : 0;
     const backW = pushed ? sat : 0;
     // Only sections that are staying count: one on its way out still has its
-    // width for a moment, and a fit measured against it would flicker.
+    // width for a moment, and a fit measured against it would flicker. The
+    // field is measured apart from the rest, because its width is the one
+    // this fit decides; everything else is what it has to fit beside.
     const staying = [...root.querySelectorAll<HTMLElement>('.anav__side--trailing .anav__satellite')].filter(
       (el) => el.dataset.for === '*' || el.dataset.for === mode,
     );
-    const trailingW = staying.reduce((sum, el) => sum + el.offsetWidth, 0) + m.gap * Math.max(0, staying.length - 1);
-    const room = (leadingW: number) => vw - m.edge * 2 - 2 * (Math.max(leadingW, trailingW) + m.gap) - m.pad * 2;
+    const others = staying.filter((el) => !el.classList.contains('anav__satellite--field'));
+    const nonField = others.reduce((sum, el) => sum + el.offsetWidth, 0) + m.gap * Math.max(0, others.length - 1);
+    // A field costs at least its minimum; give it that in the sums, and hand
+    // it whatever is actually left over once the pitch is settled.
+    const withField = nonField + (others.length ? m.gap : 0) + FIELD_MIN;
+    const room = (leadingW: number, trailingW: number) =>
+      vw - m.edge * 2 - 2 * (Math.max(leadingW, trailingW) + m.gap) - m.pad * 2;
     const n = options.length;
     const withTitle = backW + (titleW ? titleW + (backW ? m.gap : 0) : 0);
+    // The ladder, in the order the guideline gives way: the names beside the
+    // glyphs first, then the optional field, then the screen's title, and only
+    // then the cells themselves — never past a 44px hit region.
     let labels = true;
     let showTitle = titleW > 0;
+    let showField = true;
     let pitch = widest;
-    if (widest * n > room(withTitle)) {
+    const fits = (cell: number, leadingW: number, field: boolean) => cell * n <= room(leadingW, field ? withField : nonField);
+    if (!fits(widest, withTitle, true)) {
       labels = false;
       pitch = TOP_ICON_CELL;
-      if (TOP_ICON_CELL * n > room(withTitle)) {
-        showTitle = false;
-        pitch = Math.max(TOP_CELL_MIN, Math.min(TOP_ICON_CELL, Math.floor(room(backW) / n)));
+      if (!fits(TOP_ICON_CELL, withTitle, true)) {
+        // In `search` mode the field is the screen, so it stays and the title goes first.
+        showField = searching;
+        if (!fits(TOP_ICON_CELL, withTitle, showField)) {
+          showTitle = false;
+          pitch = Math.max(TOP_CELL_MIN, Math.min(TOP_ICON_CELL, Math.floor(room(backW, showField ? withField : nonField) / n)));
+        }
       }
     }
+    // Where the pill may sit without touching either edge. The window's centre
+    // when it can, the middle of what is left when it cannot.
+    const leadW = showTitle ? withTitle : backW;
+    const trailW = showField ? withField : nonField;
+    const half = (pitch * n + m.pad * 2) / 2;
+    const lo = m.edge + leadW + m.gap + half;
+    const hi = vw - m.edge - trailW - m.gap - half;
+    const centre = lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, vw / 2));
+    const shift = Math.round(centre - vw / 2);
     setTopFit((prev) =>
-      prev.pitch === pitch && prev.widest === widest && prev.labels === labels && prev.title === showTitle
+      prev.pitch === pitch &&
+      prev.widest === widest &&
+      prev.labels === labels &&
+      prev.title === showTitle &&
+      prev.field === showField &&
+      prev.nonField === nonField &&
+      prev.shift === shift
         ? prev
-        : { pitch, widest, labels, title: showTitle },
+        : { pitch, widest, labels, title: showTitle, field: showField, nonField, shift },
     );
   });
   const showLabel = labelled || (top && topFit.labels);
@@ -577,21 +660,25 @@ export function AdaptiveNav({
   const width = top
     ? options.length * topPitch + m.pad * 2
     : spanning
-      ? spanWidth(vw, sat, (leading ? 1 : 0) + (trailing ? 1 : 0), m)
+      ? spanWidth(vw, sat, (leading ? 1 : 0) + (trailingCircle ? 1 : 0), m)
       : pillWidth(mode, shown, slot, sat, vw, m);
-  const shift = spanning ? (((leading ? 1 : 0) - (trailing ? 1 : 0)) * (sat + m.gap)) / 2 : 0;
+  const shift = spanning ? (((leading ? 1 : 0) - (trailingCircle ? 1 : 0)) * (sat + m.gap)) / 2 : 0;
   /** One section's share of the pill: the slot, a spanning width divided among the sections, or a regular-width cell. */
   const pitch = top ? topPitch : spanning && !wide ? (width - m.pad * 2) / Math.max(1, shown) : slot;
-  // The field takes what the trailing edge's half of the window can spare
-  // beside a pill that still shows its names: the margin, the gap, half of
-  // that pill, and the action. Only when even the least field would not fit
-  // do the names give way, in the fit above.
+  // The field takes what its half of the window has left once the pill and
+  // the sections beside it have theirs: the margin, the gap, half the pill at
+  // the pitch the fit chose, and the rest of the trailing edge.
   const fieldWidth = Math.round(
     Math.max(
       FIELD_MIN,
       Math.min(
         FIELD_MAX,
-        vw / 2 - m.edge - m.gap - (topFit.widest * options.length + m.pad * 2) / 2 - (action ? sat + m.gap : 0),
+        vw / 2 -
+          m.edge -
+          m.gap -
+          (topFit.pitch * options.length + m.pad * 2) / 2 -
+          topFit.nonField -
+          (topFit.nonField ? m.gap : 0),
       ),
     ),
   );
@@ -923,9 +1010,10 @@ export function AdaptiveNav({
         placeholder={search?.placeholder ?? L.search}
         value={search?.value ?? ''}
         onChange={(e) => search?.onChange(e.target.value)}
+        onFocus={search?.onFocus}
         onKeyDown={onSearchKeyDown}
       />
-      {searching && search?.value ? (
+      {search?.value ? (
         <button
           type="button"
           className="anav__clear"
@@ -1025,22 +1113,23 @@ export function AdaptiveNav({
     // secondary, and last the one prominent action, its whole section tinted.
     <div className="anav__side anav__side--trailing">
             <AnimatePresence initial={false}>
-              {(action || (toolbar && tools?.length)) &&
+              {(action || trailing?.length || (toolbar && tools?.length)) &&
                 section(
                   'actions',
                   '*',
                   undefined,
                   <div className="anav__row" role="toolbar" aria-label={L.tools}>
                     <AnimatePresence initial={false}>
+                      {trailing?.map((item) => <GroupItem key={`trailing:${item.id}`}>{iconButton(item)}</GroupItem>)}
                       {toolbar && tools?.map((tool) => <GroupItem key={`tool:${tool.id}`}>{iconButton(tool)}</GroupItem>)}
                       {action && <GroupItem key={`action:${action.id}`}>{iconButton(action)}</GroupItem>}
                     </AnimatePresence>
                   </div>,
                 )}
-              {searching &&
+              {(searching || (persistentField && topFit.field)) &&
                 section(
                   'field',
-                  'search',
+                  persistentField ? '*' : 'search',
                   'anav__satellite--field',
                   <div className="anav__row anav__fieldRow" style={{ width: fieldWidth }}>
                     {field}
@@ -1073,7 +1162,7 @@ export function AdaptiveNav({
         animate={{
           width,
           transform: top
-            ? 'translateX(0px) translateY(0px) scale(1)'
+            ? `translateX(${topFit.shift}px) translateY(0px) scale(1)`
             : `translateX(${shift}px) translateY(${hidden ? sat + 96 : 0}px) scale(${hidden ? 0.97 : 1})`,
         }}
         transition={shape}

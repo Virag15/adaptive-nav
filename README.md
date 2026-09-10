@@ -205,7 +205,7 @@ guideline's *Item groupings* section orders a toolbar:
 | -------- | ------------------------------------------------------------------------------- |
 | leading  | Back or Close, "at the far leading edge"; then the title, its own section       |
 | centre   | the tabs, glyph beside name, one cell width                                     |
-| trailing | the symbol actions together in one section; the search field; the quiet secondary; last, the one prominent action, its whole section tinted |
+| trailing | the symbol actions together in one section — the app's own `trailing` items first, then the screen's; the search field; the quiet secondary; last, the one prominent action, its whole section tinted |
 
 | mode      | leading           | trailing                                  |
 | --------- | ----------------- | ----------------------------------------- |
@@ -218,6 +218,27 @@ guideline's *Item groupings* section orders a toolbar:
 | `confirm` | Close, title      | Cancel, quiet; the primary, prominent     |
 | `hidden`  | slides off the top edge                                       |
 
+Whatever the mode, `trailing` and a persistent field are there as well.
+
+```tsx
+<AdaptiveNav
+  // The app's own items, on the trailing edge in every mode: the ones the
+  // guideline says "need to remain available", badges and all.
+  trailing={[
+    { id: 'saved', label: 'Saved', Icon: Heart, active: saved, onPress: toggleSave },
+    { id: 'alerts', label: 'Notifications', Icon: Bell, badge: unread, onPress: openAlerts },
+    { id: 'more', label: 'More', Icon: Ellipsis, onPress: openMenu },
+  ]}
+  // The guideline's optional search field: on the band before the screen is
+  // searching, and it asks for search mode when someone puts a caret in it.
+  search={{ value: q, onChange: setQ, persistent: true, onFocus: () => setMode('search') }}
+/>
+```
+
+A compact pill has no trailing edge to hang `trailing` on, so there it is the
+screen's job — `action` for the one that matters, `tools` for the rest — and
+the field still arrives with `search` mode.
+
 Each section is its own glass body with fixed space between, which is what
 the guideline asks for between a symbol and a text button and between two
 text buttons. Actions are plain symbols with no bezel, since "the section
@@ -227,12 +248,24 @@ not an action, so it sits after Close. The tabs stay through every mode.
 
 The band never overflows. The guideline leaves overflow menus to the system
 and asks for layouts that do not need one, and it has the centre give way
-before the edges: names beside glyphs while the cells fit the window, glyphs
-alone when they do not, the title only after that, narrower cells last. The
-pill shifts to centre the whole cluster, since the two edges rarely weigh the
-same. All of it is measured from stand-ins before paint, and only sections
-that are staying are counted, so a section on its way out never flickers the
-fit. The band's edges are pinned to the window's margins and the tabs are
+before the edges. In order: names beside glyphs while the cells fit the
+window; glyphs alone when they do not; then the *optional* field, which is
+what the guideline calls it (never in `search` mode, where the field is the
+screen); then the title; and narrower cells last, never under a 44px hit
+region. The field is elastic between 140 and 260px — it takes whatever its
+half of the window has left once the pill and the rest of the trailing edge
+have theirs.
+
+Only when a pill at the 44px floor would still run into an edge does it give
+up the window's centre, and then it centres in what is left rather than
+overlap. A hit region is never traded for symmetry.
+
+All of it is measured from stand-ins before paint, and only sections that are
+staying are counted, so a section on its way out never flickers the fit. The
+edges are watched with a `ResizeObserver` too: sections arrive and leave
+inside `AnimatePresence`, which re-renders itself and not the bar, so a fit
+measured while one was still on its way out would otherwise never be
+corrected. The band's edges are pinned to the window's margins and the tabs are
 centred between them, as the guideline draws a toolbar. Every cell is one
 width, the widest name's, which is what lets the capsule, the scrub and the
 magnet keep the arithmetic of a compact pill.

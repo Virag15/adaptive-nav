@@ -65,6 +65,18 @@ export type SearchField = {
   placeholder?: string;
   /** Accessible name of the field; defaults to `labels.search`. */
   label?: string;
+  /**
+   * At regular width, keep the field on the trailing edge in every mode, the
+   * way the guideline draws a toolbar's optional search field, rather than
+   * only once the screen is already searching. Compact views have no room for
+   * it, so there the field still arrives with `search` mode.
+   */
+  persistent?: boolean;
+  /**
+   * The field took focus. A persistent field uses it to ask the screen to
+   * switch to its search section before a character is typed.
+   */
+  onFocus?: () => void;
 };
 
 /** The pill in `select` mode: what is selected, and the way to finish. */

@@ -50,6 +50,27 @@ const TABS: TabOption[] = [
 
 /* ---------- What the inspector offers, named for what a person sees ---------- */
 
+
+/** Icons for the app's own trailing items: saved, alerts, more. */
+const Heart = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+    <path d="M12 20s-7-4.4-7-9.3A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.7C19 15.6 12 20 12 20Z" />
+  </svg>
+);
+const Bell = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+    <path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10Z" />
+    <path d="M10.5 19a1.8 1.8 0 0 0 3 0" />
+  </svg>
+);
+const Ellipsis = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="5.5" cy="12" r="1.8" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+    <circle cx="18.5" cy="12" r="1.8" fill="currentColor" />
+  </svg>
+);
+
 const SCENES: { mode: NavMode; name: string; what: string }[] = [
   { mode: 'tabs', name: 'Home', what: 'sections' },
   { mode: 'context', name: 'Pushed', what: 'Back, Save' },
@@ -409,6 +430,8 @@ function Playground() {
   const [small, setSmall] = useState(false);
   const [min, setMin] = useState(false);
   const [labelled, setLabelled] = useState(false);
+  const [appItems, setAppItems] = useState(true);
+  const [persist, setPersist] = useState(true);
   const [dark, setDark] = useState(false);
   const [tone, setTone] = useState<ToneSetting>('auto');
   const [quality, setQuality] = useState<Quality>('auto');
@@ -469,9 +492,21 @@ function Playground() {
     () => (mode === 'buy' ? { label: 'Add to cart', price: work.price, done: 'Added!', onPress: () => note('buy ' + work.name) } : undefined),
     [mode, work, note],
   );
+  // A persistent field is on the band whatever the screen is doing, so it is
+  // handed over in every mode and asks for search mode when it takes focus.
   const search = useMemo(
-    () => (mode === 'search' ? { value: query, placeholder: 'Search the collection…', onChange: setQuery, onSubmit: (q: string) => note('search:' + q) } : undefined),
-    [mode, query, note],
+    () =>
+      persist || mode === 'search'
+        ? {
+            value: query,
+            placeholder: 'Search the collection…',
+            onChange: setQuery,
+            onSubmit: (q: string) => note('search:' + q),
+            persistent: persist,
+            onFocus: persist ? () => setMode('search') : undefined,
+          }
+        : undefined,
+    [mode, query, note, persist],
   );
   const tools = useMemo<NavAction[]>(
     () => [
@@ -499,6 +534,19 @@ function Playground() {
     [leave],
   );
   const metrics = useMemo(() => (small ? { slot: 44 } : undefined), [small]);
+  // The app's own items: available in every mode, the way the guideline's
+  // trailing edge keeps them, rather than something each screen re-supplies.
+  const trailing = useMemo<NavAction[] | undefined>(
+    () =>
+      appItems
+        ? [
+            { id: 'saved', label: 'Saved', Icon: Heart, active: liked, onPress: () => setLiked((s) => !s) },
+            { id: 'alerts', label: 'Notifications', Icon: Bell, badge: 4, onPress: () => note('alerts') },
+            { id: 'more', label: 'More', Icon: Ellipsis, onPress: () => note('more') },
+          ]
+        : undefined,
+    [appItems, liked, note],
+  );
 
   return (
     <>
@@ -581,6 +629,12 @@ function Playground() {
               <Switch id="small" on={small} onFlip={() => setSmall((s) => !s)}>
                 Compact slot, 44 px
               </Switch>
+              <Switch id="trailing" on={appItems} onFlip={() => setAppItems((a) => !a)}>
+                App items on the trailing edge
+              </Switch>
+              <Switch id="persist" on={persist} onFlip={() => setPersist((p) => !p)}>
+                Search field always on the band
+              </Switch>
             </div>
           </Section>
 
@@ -605,6 +659,7 @@ function Playground() {
         }}
         onBack={() => leave(mode === 'select' || mode === 'confirm' ? 'close' : 'back')}
         action={action}
+        trailing={trailing}
         buy={buy}
         search={search}
         tools={tools}
