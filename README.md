@@ -1,6 +1,8 @@
 # @virag/adaptive-nav
 
-A floating glass tab bar for mobile web apps, built with React and
+MIT licensed. Free to use in anything.
+
+A floating glass tab bar for web apps, built with React and
 [Motion](https://motion.dev). One pill holds the sections. On a pushed screen a
 **Back** circle slides out from under the pill's left end, and the screen can
 hang an **action** circle (bag, save, share…) off the right end. On a product
@@ -30,8 +32,8 @@ peer dependencies, and the stylesheet carries its own resets and theme tokens.
 
 ## Install
 
-The package lives at `Delta System-Dev/adaptive-nav` and ships TypeScript
-source, not a build. Two ways to use it:
+The package ships TypeScript source, not a build, and depends only on React
+and Motion as peers. Two ways to use it:
 
 **Link it**, so edits here show up in the app with hot reload:
 
@@ -554,12 +556,16 @@ npm run dev         # playground at http://localhost:4321
 npm run check       # tsc (strict) + node --test on geometry, glass and the lens map
 ```
 
-The playground opens on the `liquid` preset and has every mode, a dark page,
-slot 44, minimized and labelled, the three tone settings, the four quality
-settings, the four glass presets, the four indicator styles, and a slider for
-each glass knob (the sliders call `setGlobalGlass`, so they are the global
-option). It scrolls a
-busy page under the bar — tiles, stripes, a grid, and a near-black band the
-bar flips over — so the material has something to blur, tint, bend and read.
-It loads only the package stylesheet, so anything that looks wrong there is
-the package's fault, not a host's.
+The playground is a small sample app — a hero, a shelf of cards, a near-black
+room, a list, and a stripes-and-grid lens test — with the controls in an
+inspector behind the **Playground** button. Tapping a card puts the bar in
+`buy` mode with that card's price; tapping a row pushes a screen; scrolling
+the dark room under the bar is what makes the ink turn. The inspector holds
+every mode, the three placements, a dark page, slot 44, minimized and
+labelled, the three tone settings, the four quality settings, the four glass
+presets, the four indicator styles, and a slider for each glass knob (the
+sliders call `setGlobalGlass`, so they are the global option).
+
+The page has its own stylesheet and never writes a rule that touches `.anav`,
+so anything that looks wrong on the bar there is the package's fault, not a
+host's.

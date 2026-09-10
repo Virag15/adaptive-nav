@@ -18,7 +18,7 @@ import {
 } from '../src';
 import '../src/adaptive-nav.css';
 
-/* ---------- Icons for the bar; static, so they never rebuild ---------- */
+/* ---------- Icons for the sample tabs; static, so they never rebuild ---------- */
 
 const Dot = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
@@ -52,8 +52,8 @@ const TABS: TabOption[] = [
 
 const SCENES: { mode: NavMode; name: string; what: string }[] = [
   { mode: 'tabs', name: 'Home', what: 'sections' },
-  { mode: 'context', name: 'Store', what: 'Back, Save' },
-  { mode: 'buy', name: 'Product', what: 'Add to bag' },
+  { mode: 'context', name: 'Pushed', what: 'Back, Save' },
+  { mode: 'buy', name: 'Product', what: 'Add to cart' },
   { mode: 'search', name: 'Search', what: 'a field' },
   { mode: 'toolbar', name: 'Photo', what: 'share, like, more' },
   { mode: 'select', name: 'Select', what: 'count, Done' },
@@ -94,29 +94,29 @@ const KNOBS: { key: keyof GlassConfig; label: string; min: number; max: number; 
   { key: 'dispersion', label: 'Dispersion', min: 0, max: 1, step: 0.01 },
 ];
 
-/* ---------- The store ---------- */
+/* ---------- Sample content: a small demo app for the bar to float over ---------- */
 
-type Piece = { name: string; price: string; stone: string; jewel: string };
-const FEATURED: Piece = { name: 'Cushion cut', price: '₹2,10,000', stone: 'garnet', jewel: 'stone' };
-const NEW_THIS_WEEK: Piece[] = [
-  { name: 'Solitaire ring', price: '₹96,400', stone: 'garnet', jewel: 'ring' },
-  { name: 'Tennis bracelet', price: '₹1,84,000', stone: 'sapphire', jewel: 'chain' },
-  { name: 'Polki drops', price: '₹58,200', stone: 'emerald', jewel: 'drops' },
-  { name: 'Pearl strand', price: '₹42,900', stone: 'amethyst', jewel: 'pearls' },
-  { name: 'Signet ring', price: '₹31,500', stone: 'citrine', jewel: 'ring' },
-  { name: 'Rope chain', price: '₹1,02,000', stone: 'sapphire', jewel: 'chain' },
+type Work = { name: string; price: string; tint: string; figure: string };
+const NEW_WORK: Work[] = [
+  { name: 'Prism', price: '$148', tint: 'rose', figure: 'prism' },
+  { name: 'Meridian', price: '$92', tint: 'indigo', figure: 'bar' },
+  { name: 'Pendant', price: '$210', tint: 'pine', figure: 'drops' },
+  { name: 'Strand', price: '$76', tint: 'violet', figure: 'beads' },
+  { name: 'Halo', price: '$132', tint: 'amber', figure: 'halo' },
+  { name: 'Cable', price: '$64', tint: 'indigo', figure: 'bar' },
 ];
-const IN_THE_ROOM: Piece[] = [
-  { name: 'Estate solitaire', price: '₹3,40,000', stone: 'garnet', jewel: 'stone' },
-  { name: 'Cuban chain', price: '₹1,12,000', stone: 'sapphire', jewel: 'chain' },
-  { name: 'Baroque pearls', price: '₹66,000', stone: 'emerald', jewel: 'pearls' },
-  { name: 'Amethyst drops', price: '₹48,500', stone: 'amethyst', jewel: 'drops' },
+const IN_THE_ROOM: Work[] = [
+  { name: 'Night prism', price: '$340', tint: 'rose', figure: 'prism' },
+  { name: 'Long meridian', price: '$112', tint: 'indigo', figure: 'bar' },
+  { name: 'Pale strand', price: '$66', tint: 'pine', figure: 'beads' },
+  { name: 'Twin drops', price: '$88', tint: 'violet', figure: 'drops' },
 ];
-const COLLECTIONS: { name: string; count: string; stone: string; jewel: string }[] = [
-  { name: 'Bridal', count: '48 pieces', stone: 'garnet', jewel: 'drops' },
-  { name: 'Everyday gold', count: '120 pieces', stone: 'citrine', jewel: 'chain' },
-  { name: 'Stones', count: '36 pieces', stone: 'amethyst', jewel: 'stone' },
-  { name: 'Pearls', count: '22 pieces', stone: 'sapphire', jewel: 'pearls' },
+const FIRST_WORK = NEW_WORK[0];
+const ROOMS: { name: string; count: string; tint: string; figure: string }[] = [
+  { name: 'Geometry', count: '48 works', tint: 'rose', figure: 'drops' },
+  { name: 'Metals', count: '120 works', tint: 'amber', figure: 'bar' },
+  { name: 'Monochrome', count: '36 works', tint: 'violet', figure: 'prism' },
+  { name: 'Studies', count: '22 works', tint: 'indigo', figure: 'beads' },
 ];
 
 const Chevron = () => (
@@ -125,79 +125,116 @@ const Chevron = () => (
   </svg>
 );
 
-function Case({ piece, index, onPick }: { piece: Piece; index: number; onPick: (p: Piece) => void }) {
+function Case({ work, index, onPick }: { work: Work; index: number; onPick: (w: Work) => void }) {
   return (
     <button
       type="button"
-      className={`case tile rise press case--${piece.stone}`}
+      className={`case tile rise press case--${work.tint}`}
       style={{ ['--i' as string]: index }}
-      onClick={() => onPick(piece)}
-      aria-label={`${piece.name}, ${piece.price}`}
+      onClick={() => onPick(work)}
+      aria-label={`${work.name}, ${work.price}`}
     >
-      <span className="case__satin" aria-hidden>
-        <span className={`jewel jewel--${piece.jewel}`} />
+      <span className="case__art" aria-hidden>
+        <span className={`figure figure--${work.figure}`} />
       </span>
       <span className="case__label">
-        <span className="case__name">{piece.name}</span>
-        <span className="case__price">{piece.price}</span>
+        <span className="case__name">{work.name}</span>
+        <span className="case__price">{work.price}</span>
       </span>
     </button>
   );
 }
 
+const USAGE = `import { AdaptiveNav } from '@virag/adaptive-nav'
+import '@virag/adaptive-nav/styles.css'
+
+<AdaptiveNav
+  mode={mode}          // tabs · context · buy · search · toolbar · select · confirm · hidden
+  options={tabs}
+  value={tab}
+  onChange={setTab}
+  onBack={goBack}
+/>`;
+
 /**
- * The store never changes while the bar is tuned, so it renders once and is
- * left alone: the inspector's sliders re-render only themselves.
+ * The sample app never changes while the bar is tuned, so it renders once and
+ * is left alone: the inspector's sliders re-render only themselves.
  */
-const Store = memo(function Store({ onPick, onOpen }: { onPick: (p: Piece) => void; onOpen: (name: string) => void }) {
+const Sample = memo(function Sample({ onPick, onOpen, onTune }: { onPick: (w: Work) => void; onOpen: (name: string) => void; onTune: () => void }) {
+  const [copied, setCopied] = useState(false);
   return (
     <>
-      <button type="button" className="feature press" onClick={() => onPick(FEATURED)}>
-        <span className="feature__jewel" aria-hidden>
-          <span className="jewel jewel--stone" style={{ width: '100%' }} />
+      <section className="hero">
+        <span className="hero__art" aria-hidden>
+          <span className="figure figure--prism" style={{ width: '100%' }} />
         </span>
-        <span className="feature__eyebrow">Autumn edit</span>
-        <span className="feature__title">Stones of the season</span>
-        <span className="feature__cta">Shop the edit</span>
-      </button>
+        <p className="hero__eyebrow">React + Motion · MIT</p>
+        <h1 className="hero__title">Glass that reads the room</h1>
+        <p className="hero__lede">
+          A floating tab bar that bends what is under it, turns its ink white over dark content, and becomes a search
+          field, a buy bar or a toolbar as the screen needs. Free to use in anything.
+        </p>
+        <div className="install">
+          <button
+            type="button"
+            className="install__cmd press"
+            data-copied={copied || undefined}
+            onClick={() => {
+              navigator.clipboard?.writeText(INSTALL).then(
+                () => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1400);
+                },
+                () => undefined,
+              );
+            }}
+          >
+            {INSTALL}
+            {copied ? <TickIcon /> : <CopyIcon />}
+          </button>
+          <button type="button" className="install__link press" onClick={onTune}>
+            Open the playground
+          </button>
+        </div>
+      </section>
 
       <section className="shelf stage">
         <div className="shelf__head">
-          <h2 className="shelf__title">New this week</h2>
-          <span className="shelf__note">Tap a piece to open it</span>
+          <h2 className="shelf__title">New prints</h2>
+          <span className="shelf__note">Tap a card. The bar becomes a buy bar.</span>
         </div>
         <div className="cases">
-          {NEW_THIS_WEEK.map((p, i) => (
-            <Case key={p.name} piece={p} index={i} onPick={onPick} />
+          {NEW_WORK.map((w, i) => (
+            <Case key={w.name} work={w} index={i} onPick={onPick} />
           ))}
         </div>
       </section>
 
-      <section className="velvet shelf" id="band">
+      <section className="room shelf" id="band">
         <div className="shelf__head">
-          <h2 className="shelf__title">The velvet room</h2>
-          <span className="shelf__note">Over dark ground the bar turns</span>
+          <h2 className="shelf__title">The dark room</h2>
+          <span className="shelf__note">Scroll it under the bar. The ink turns.</span>
         </div>
         <div className="cases">
-          {IN_THE_ROOM.map((p, i) => (
-            <Case key={p.name} piece={p} index={i} onPick={onPick} />
+          {IN_THE_ROOM.map((w, i) => (
+            <Case key={w.name} work={w} index={i} onPick={onPick} />
           ))}
         </div>
       </section>
 
       <section className="shelf stage">
         <div className="shelf__head">
-          <h2 className="shelf__title">Collections</h2>
-          <span className="shelf__note">Opens a store screen</span>
+          <h2 className="shelf__title">Rooms</h2>
+          <span className="shelf__note">Opens a pushed screen.</span>
         </div>
         <div className="rows">
-          {COLLECTIONS.map((c) => (
-            <button key={c.name} type="button" className={`row case--${c.stone}`} onClick={() => onOpen(c.name)}>
+          {ROOMS.map((r) => (
+            <button key={r.name} type="button" className={`row case--${r.tint}`} onClick={() => onOpen(r.name)}>
               <span className="row__swatch" aria-hidden>
-                <span className={`jewel jewel--${c.jewel}`} />
+                <span className={`figure figure--${r.figure}`} />
               </span>
-              <span className="row__name">{c.name}</span>
-              <span className="row__count">{c.count}</span>
+              <span className="row__name">{r.name}</span>
+              <span className="row__count">{r.count}</span>
               <Chevron />
             </button>
           ))}
@@ -207,7 +244,7 @@ const Store = memo(function Store({ onPick, onOpen }: { onPick: (p: Piece) => vo
       <section className="shelf stage lens">
         <div className="shelf__head">
           <h2 className="shelf__title">Lens test</h2>
-          <span className="shelf__note">Straight lines show the bend</span>
+          <span className="shelf__note">Straight lines show the bend.</span>
         </div>
         <div className="stripes" />
         <div className="grid" />
@@ -218,9 +255,18 @@ const Store = memo(function Store({ onPick, onOpen }: { onPick: (p: Piece) => vo
         </p>
       </section>
 
+      <section className="shelf stage">
+        <div className="shelf__head">
+          <h2 className="shelf__title">Use it</h2>
+          <span className="shelf__note">One component, eight modes.</span>
+        </div>
+        <pre className="code">{USAGE}</pre>
+      </section>
+
       <footer className="colophon">
         Every preset is the same nine numbers. Every curve comes from one rule: the pill is a capsule, the circles share
-        its height, and anything inset is concentric. The page never styles the bar.
+        its height, and anything inset is concentric. This page never styles the bar, so anything that looks wrong on it
+        is the component's fault, not the page's. MIT licensed.
       </footer>
     </>
   );
@@ -323,6 +369,25 @@ function Material() {
 
 /* ---------- The page ---------- */
 
+const CopyIcon = () => (
+  <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="5.75" y="5.75" width="7.5" height="7.5" rx="2" />
+    <path d="M10.25 3.75A1.5 1.5 0 0 0 8.75 2.25h-4a2.5 2.5 0 0 0-2.5 2.5v4a1.5 1.5 0 0 0 1.5 1.5" />
+  </svg>
+);
+const TickIcon = () => (
+  <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m3 8.5 3.5 3.5L13 5" />
+  </svg>
+);
+const BarGlyph = () => (
+  <svg className="brand__glyph" viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="1.5" y="7.5" width="21" height="9" rx="4.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <circle cx="7" cy="12" r="2.4" fill="currentColor" />
+  </svg>
+);
+const INSTALL = 'npm i @virag/adaptive-nav';
+
 const CloseIcon = () => (
   <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
     <path d="m4 4 8 8M12 4l-8 8" />
@@ -352,8 +417,8 @@ function Playground() {
   const [indicator, setIndicator] = useState<IndicatorStyle>('capsule');
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState(3);
-  const [piece, setPiece] = useState<Piece>(FEATURED);
-  const [store, setStore] = useState('Store');
+  const [work, setWork] = useState<Work>(FIRST_WORK);
+  const [room, setRoom] = useState('Rooms');
   const [open, setOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
   const [log, setLog] = useState<string[]>([]);
   const note = useCallback((s: string) => setLog((l) => [...l.slice(-5), s]), []);
@@ -365,21 +430,22 @@ function Playground() {
     [note],
   );
   const pick = useCallback(
-    (p: Piece) => {
-      setPiece(p);
+    (w: Work) => {
+      setWork(w);
       setMode('buy');
-      note('open ' + p.name);
+      note('open ' + w.name);
     },
     [note],
   );
-  const openStore = useCallback(
+  const openRoom = useCallback(
     (name: string) => {
-      setStore(name);
+      setRoom(name);
       setMode('context');
-      note('store ' + name);
+      note('room ' + name);
     },
     [note],
   );
+  const openTune = useCallback(() => setOpen(true), []);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -389,7 +455,7 @@ function Playground() {
     document.documentElement.toggleAttribute('data-inspector', open);
   }, [open]);
 
-  const title = mode === 'buy' ? piece.name : mode === 'context' ? store : TITLES[mode];
+  const title = mode === 'buy' ? work.name : mode === 'context' ? room : TITLES[mode];
 
   // The bar's own props are objects; keeping them stable keeps its render cheap.
   const action = useMemo<NavAction | undefined>(() => {
@@ -400,11 +466,11 @@ function Playground() {
     return undefined;
   }, [mode, saved, picked, note]);
   const buy = useMemo(
-    () => (mode === 'buy' ? { label: 'Add to bag', price: piece.price, done: 'Added!', onPress: () => note('buy ' + piece.name) } : undefined),
-    [mode, piece, note],
+    () => (mode === 'buy' ? { label: 'Add to cart', price: work.price, done: 'Added!', onPress: () => note('buy ' + work.name) } : undefined),
+    [mode, work, note],
   );
   const search = useMemo(
-    () => (mode === 'search' ? { value: query, placeholder: 'Search rings, chains…', onChange: setQuery, onSubmit: (q: string) => note('search:' + q) } : undefined),
+    () => (mode === 'search' ? { value: query, placeholder: 'Search the collection…', onChange: setQuery, onSubmit: (q: string) => note('search:' + q) } : undefined),
     [mode, query, note],
   );
   const tools = useMemo<NavAction[]>(
@@ -439,8 +505,9 @@ function Playground() {
       <div className="app">
         <header className="appbar">
           <div className="brand">
-            <span className="brand__mark">SKK</span>
-            <span className="brand__name">Jewellers</span>
+            <BarGlyph />
+            <span className="brand__name">adaptive-nav</span>
+            <span className="brand__note">a floating glass tab bar for React</span>
           </div>
           <button type="button" className="tune press" id="tune" aria-expanded={open} aria-controls="panel" onClick={() => setOpen((o) => !o)}>
             <TuneIcon />
@@ -448,7 +515,7 @@ function Playground() {
           </button>
         </header>
 
-        <Store onPick={pick} onOpen={openStore} />
+        <Sample onPick={pick} onOpen={openRoom} onTune={openTune} />
       </div>
 
       {open && <div className="scrim" onClick={() => setOpen(false)} aria-hidden />}
@@ -457,7 +524,7 @@ function Playground() {
         <div className="panel__head">
           <div>
             <h2 className="panel__title">Playground</h2>
-            <p className="panel__sub">Drag across the tabs to scrub. Tap a piece to open it.</p>
+            <p className="panel__sub">Drag across the tabs to scrub. Tap a card to open it.</p>
           </div>
           <button type="button" className="panel__close press" aria-label="Close the playground" onClick={() => setOpen(false)}>
             <CloseIcon />

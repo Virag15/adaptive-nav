@@ -1,15 +1,16 @@
 {
   "name": "@virag/adaptive-nav",
   "version": "0.1.0",
-  "description": "Floating glass tab bar for mobile web apps: one pill, a Back circle that slides out on pushed screens, a screen-chosen action circle, and a buy mode where the pill becomes the call to action.",
-  "license": "UNLICENSED",
+  "description": "Floating glass tab bar for React: one pill, a Back circle that slides out on pushed screens, a screen-chosen action circle, and modes for search, buy, toolbar, select and confirm.",
+  "license": "MIT",
   "type": "module",
   "sideEffects": [
     "*.css"
   ],
   "files": [
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
