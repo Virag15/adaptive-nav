@@ -141,6 +141,10 @@ as part of the tap and raises the keyboard), lifts the bar above the on-screen
 keyboard through the visual viewport, submits on Enter and leaves on Escape
 through `onBack`. `toolbar` puts the screen's own actions where the tabs were,
 each a plain button with press feedback, a toggle state (`active`) and a badge;
+a badge is a count, or `true` for a dot where something is new and the number
+of it is not the point — `0`, `false` and omitted all mean none, so `badge`
+can be `items.length` without a guard. The dot keeps the count's box, so it
+sits exactly where a single-digit count would;
 the pill is as wide as its tools, and there is no indicator because nothing is
 selected. `select` is a session: the left circle becomes Close (a cross), the
 pill shows the count and a Done button, and the action circle carries what to
@@ -159,6 +163,7 @@ tap or arrow key then calls `onExpand` instead of switching.
 | ----------- | ----------------------------- | ------------------------------------------------------------ |
 | `mode`      | `'tabs' \| 'context' \| 'buy'` |                                                              |
 | `options`   | `TabOption[]`                 | `{ id, label, Icon, badge? }` — icon-only, `label` is read aloud |
+| `trailing`  | `NavAction[]`                 | the app's own items on the band's trailing edge, in every mode |
 | `value`     | `string`                      | selected tab id                                              |
 | `onChange`  | `(id) => void`                | on a pushed screen the current tab fires too (it is a way home) |
 | `onBack`    | `() => void`                  | Back circle                                                  |
@@ -177,7 +182,7 @@ tap or arrow key then calls `onExpand` instead of switching.
 | `labelled`  | `boolean`                     | print each section's and tool's name under its glyph         |
 | `placement` | `'auto' \| 'bottom' \| 'top'` | where the bar lives; default `auto` switches on width (see Placement) |
 | `title`     | `string`                      | the view's title, leading at regular width, under 15 characters; a selection's count stands in |
-| `labels`    | `Partial<NavLabels>`          | `back`, `close`, `tools`, `selectDone`, `sections`, `done`, `search`, `clear`, `badge(n)`, `expandHint(label)` |
+| `labels`    | `Partial<NavLabels>`          | `back`, `close`, `tools`, `selectDone`, `sections`, `done`, `search`, `clear`, `badge(n)`, `badgeDot`, `expandHint(label)` |
 | `backIcon`  | `ReactNode`                   | replaces the built-in chevron                                |
 | `metrics`   | `Partial<NavMetrics>`         | `slot`, `pad`, `gap`, `edge`, `buyInset`, `buyMaxWidth`      |
 | `className` | `string`                      | added to the root                                            |
@@ -564,7 +569,7 @@ for a sheet that has to clear it, say. The bar's height is `slot + 2 · pad`
 
 - Tabs are a `tablist`; arrow keys, Home and End move the selection and focus.
 - Back and the action circle are plain buttons with `aria-label`; toggles set `aria-pressed`.
-- Badges render a visually hidden count (`labels.badge`).
+- Badges render a visually hidden count (`labels.badge`), or `labels.badgeDot` when the badge is a dot.
 - The buy confirmation is announced through a polite live region.
 - The search field is a real `<input type="search">` with an accessible name
   (`search.label` or `labels.search`); the clear button is named `labels.clear`.

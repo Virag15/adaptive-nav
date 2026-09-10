@@ -4,6 +4,7 @@ export type {
   BuyAction,
   ConfirmActions,
   NavAction,
+  NavBadge,
   NavLabels,
   NavMode,
   SearchField,

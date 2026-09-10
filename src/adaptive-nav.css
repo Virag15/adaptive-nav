@@ -842,6 +842,26 @@
   box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
   pointer-events: none;
 }
+/* A dot instead of a count, for "there is something new" where the number is
+   not the point. It keeps the count's 16px box, so every rule that pins a
+   badge to a glyph's corner lands the same, and draws the mark centred in it. */
+.anav__badge[data-dot] {
+  min-width: 16px;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.anav__badge[data-dot]::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--anav-badge);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
+}
 
 /* ---------- User preferences ---------- */
 

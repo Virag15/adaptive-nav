@@ -61,6 +61,7 @@ import type {
   BuyAction,
   ConfirmActions,
   NavAction,
+  NavBadge,
   NavLabels,
   NavMode,
   SearchField,
@@ -160,6 +161,7 @@ const DEFAULT_LABELS: NavLabels = {
   search: 'Search',
   clear: 'Clear',
   badge: (n) => `${n} items`,
+  badgeDot: 'New',
   expandHint: (label) => `${label}, tap to show all sections`,
 };
 
@@ -269,7 +271,7 @@ function useKeyboardInset(enabled: boolean) {
 }
 
 /** A count that pops when it changes; the visually hidden text beside it is what is read aloud. */
-function Badge({ count, reduce }: { count: number; reduce: boolean }) {
+function Badge({ count, reduce }: { count: NavBadge; reduce: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   const shown = useRef(count);
   useEffect(() => {
@@ -277,9 +279,11 @@ function Badge({ count, reduce }: { count: number; reduce: boolean }) {
     shown.current = count;
     if (!reduce) ref.current?.animate?.(BADGE_POP, { duration: 200, easing: POP_EASE });
   }, [count, reduce]);
+  // A dot keeps the count's box, so every rule that pins a badge to a glyph's
+  // corner still lands; only the mark inside it changes.
   return (
-    <span ref={ref} className="anav__badge" aria-hidden>
-      {count}
+    <span ref={ref} className="anav__badge" data-dot={count === true || undefined} aria-hidden>
+      {count === true ? null : count}
     </span>
   );
 }
@@ -988,7 +992,12 @@ export function AdaptiveNav({
   const tone = useBackdropTone(rootRef, toneSetting, `${mode}:${width}:${vw}`);
   const material = tone === 'dark' ? { ...g, base: g.baseDark } : g;
 
-  const badgeText = (count?: number) => (count ? <span className="anav__sr">{L.badge(count)}</span> : null);
+  const badgeText = (badge?: NavBadge) =>
+    badge === true ? (
+      <span className="anav__sr">{L.badgeDot}</span>
+    ) : badge ? (
+      <span className="anav__sr">{L.badge(badge)}</span>
+    ) : null;
 
   // The field is one thing in two homes: the pill in a compact view, the
   // trailing section at regular width. One ref, since only one home renders.

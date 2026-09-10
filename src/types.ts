@@ -5,8 +5,15 @@ export type TabOption = {
   /** Not rendered — the bar is icon-only, so this is what assistive tech reads. */
   label: string;
   Icon: ComponentType<{ className?: string }>;
-  badge?: number;
+  badge?: NavBadge;
 };
+
+/**
+ * A count, or `true` for a dot when there is something new and the number of
+ * it is not the point. Zero, `false` and omitted all mean no badge, so a badge
+ * can be `items.length` without a guard.
+ */
+export type NavBadge = number | boolean;
 
 /**
  * tabs    — home level: one pill, the sections, the indicator marks the active one.
@@ -42,7 +49,7 @@ export type NavAction = {
   id: string;
   label: string;
   Icon: ComponentType<{ className?: string }>;
-  badge?: number;
+  badge?: NavBadge;
   /** Toggles (saved, following) render filled and announce aria-pressed. */
   active?: boolean;
   onPress: () => void;
@@ -115,6 +122,8 @@ export type NavLabels = {
   clear: string;
   /** What assistive tech reads for a badge count. */
   badge: (count: number) => string;
+  /** What assistive tech reads for a badge that is a dot rather than a count. */
+  badgeDot: string;
   /** The active tab's name while the bar is minimized, so the extra tap is explained. */
   expandHint: (label: string) => string;
 };

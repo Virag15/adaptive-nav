@@ -71,6 +71,9 @@ const Ellipsis = ({ className }: { className?: string }) => (
   </svg>
 );
 
+/** The same sections with a dot in place of the count, for the badge switch. */
+const DOT_TABS: TabOption[] = TABS.map((t) => (t.badge ? { ...t, badge: true } : t));
+
 const SCENES: { mode: NavMode; name: string; what: string }[] = [
   { mode: 'tabs', name: 'Home', what: 'sections' },
   { mode: 'context', name: 'Pushed', what: 'Back, Save' },
@@ -432,6 +435,7 @@ function Playground() {
   const [labelled, setLabelled] = useState(false);
   const [appItems, setAppItems] = useState(true);
   const [persist, setPersist] = useState(true);
+  const [dots, setDots] = useState(false);
   const [dark, setDark] = useState(false);
   const [tone, setTone] = useState<ToneSetting>('auto');
   const [quality, setQuality] = useState<Quality>('auto');
@@ -483,11 +487,11 @@ function Playground() {
   // The bar's own props are objects; keeping them stable keeps its render cheap.
   const action = useMemo<NavAction | undefined>(() => {
     if (mode === 'context' || mode === 'buy' || mode === 'search' || mode === 'toolbar') {
-      return { id: 'save', label: 'Save', Icon: Dot, active: saved, badge: 2, onPress: () => setSaved((s) => !s) };
+      return { id: 'save', label: 'Save', Icon: Dot, active: saved, badge: dots ? true : 2, onPress: () => setSaved((s) => !s) };
     }
     if (mode === 'select') return { id: 'delete', label: 'Delete', Icon: Tri, onPress: () => note('delete ' + picked) };
     return undefined;
-  }, [mode, saved, picked, note]);
+  }, [mode, saved, picked, note, dots]);
   const buy = useMemo(
     () => (mode === 'buy' ? { label: 'Add to cart', price: work.price, done: 'Added!', onPress: () => note('buy ' + work.name) } : undefined),
     [mode, work, note],
@@ -512,9 +516,9 @@ function Playground() {
     () => [
       { id: 'share', label: 'Share', Icon: Tri, onPress: () => note('tool:share') },
       { id: 'like', label: 'Like', Icon: Ring, active: liked, onPress: () => setLiked((s) => !s) },
-      { id: 'more', label: 'More', Icon: Square, badge: 1, onPress: () => note('tool:more') },
+      { id: 'more', label: 'More', Icon: Square, badge: dots ? true : 1, onPress: () => note('tool:more') },
     ],
-    [liked, note],
+    [liked, note, dots],
   );
   const select = useMemo(
     () => ({
@@ -541,11 +545,11 @@ function Playground() {
       appItems
         ? [
             { id: 'saved', label: 'Saved', Icon: Heart, active: liked, onPress: () => setLiked((s) => !s) },
-            { id: 'alerts', label: 'Notifications', Icon: Bell, badge: 4, onPress: () => note('alerts') },
+            { id: 'alerts', label: 'Notifications', Icon: Bell, badge: dots ? true : 4, onPress: () => note('alerts') },
             { id: 'more', label: 'More', Icon: Ellipsis, onPress: () => note('more') },
           ]
         : undefined,
-    [appItems, liked, note],
+    [appItems, liked, note, dots],
   );
 
   return (
@@ -635,6 +639,9 @@ function Playground() {
               <Switch id="persist" on={persist} onFlip={() => setPersist((p) => !p)}>
                 Search field always on the band
               </Switch>
+              <Switch id="dots" on={dots} onFlip={() => setDots((d) => !d)}>
+                Badges as dots, not counts
+              </Switch>
             </div>
           </Section>
 
@@ -646,7 +653,7 @@ function Playground() {
 
       <AdaptiveNav
         mode={mode}
-        options={TABS}
+        options={dots ? DOT_TABS : TABS}
         value={tab}
         indicator={indicator}
         tone={tone}
