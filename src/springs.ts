@@ -1,27 +1,15 @@
-// A tap carries no momentum, so the capsule travels to it almost critically
-// damped (ratio ~0.92, response ~0.35s): it settles, it does not wobble, and
-// it stays grabbable if you tap again mid-flight.
-export const SELECTION_SPRING = { type: 'spring', stiffness: 300, damping: 32, mass: 1 } as const;
-// Landing after a scrub or a flick: the finger had momentum, so a little life
-// (ratio ~0.68) reads as the capsule carrying it home.
-export const RELEASE_SPRING = { type: 'spring', stiffness: 360, damping: 26, mass: 1 } as const;
-// While the finger is down the capsule tracks it: response ~0.13s, critically
-// damped, so it feels attached with just enough lag to read as weight.
-export const FOLLOW_SPRING = { type: 'spring', stiffness: 1200, damping: 70, mass: 1 } as const;
-export const REDUCED_SPRING = { type: 'spring', stiffness: 2200, damping: 120, mass: 1 } as const;
-// The swell on press: quick, with a hint of bounce, like pressing a bubble.
-export const PRESS_SPRING = { stiffness: 600, damping: 26, mass: 0.6 } as const;
-// Speed becomes stretch through this; a ratio of ~0.72 lets the capsule wobble
-// once as it lands, the way jelly settles.
-export const STRETCH_SPRING = { stiffness: 700, damping: 38, mass: 1 } as const;
-// Pill and slot widths: critically damped, slightly quicker — a container
-// that overshoots reads as wobbly rather than alive.
-export const SHAPE_SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 1 } as const;
-// A circle leaving the pill: a hair under critical damping (ratio 0.85) so it
-// lands with a hint of life. Going back under is stiffer, so a quick
-// back-and-forth never trails behind the finger.
-export const EMERGE_SPRING = { type: 'spring', stiffness: 400, damping: 34, mass: 1 } as const;
-export const RETREAT_SPRING = { type: 'spring', stiffness: 600, damping: 48, mass: 1 } as const;
+// Apple-style response ~0.3s, damping ratio 1: ordinary selection and
+// geometry changes settle without overshoot while remaining interruptible.
+export const SELECTION_SPRING = { type: 'spring', stiffness: 440, damping: 42, mass: 1 } as const;
+// Only a released gesture carries momentum; ratio ~0.8 keeps its handoff soft.
+export const RELEASE_SPRING = { type: 'spring', stiffness: 440, damping: 34, mass: 1 } as const;
+// A restrained press and velocity deformation, both critically damped.
+export const PRESS_SPRING = { stiffness: 600, damping: 38, mass: 0.6 } as const;
+export const STRETCH_SPRING = { stiffness: 700, damping: 53, mass: 1 } as const;
+export const SHAPE_SPRING = SELECTION_SPRING;
+// Satellites share the same calm settle instead of adding another bounce.
+export const EMERGE_SPRING = { type: 'spring', stiffness: 400, damping: 40, mass: 1 } as const;
+export const RETREAT_SPRING = { type: 'spring', stiffness: 600, damping: 49, mass: 1 } as const;
 export const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 export const FADE_IN = { duration: 0.2, ease: EASE_OUT } as const;
 export const FADE_OUT = { duration: 0.14, ease: EASE_OUT } as const;

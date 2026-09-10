@@ -61,8 +61,10 @@
     0 10px 34px rgb(0 0 0 / 0.16),
     0 2px 8px rgb(0 0 0 / 0.06);
   --anav-indicator-shadow: 0 4px 12px rgb(0 0 0 / 0.12), 0 0 0 0.5px rgb(0 0 0 / 0.04);
-  /* Distance from the bottom edge, before the safe-area inset is added. */
+  /* Distance from the bottom edge, before the safe-area inset is added; and
+     from the top edge, where the bar sits at regular width. */
   --anav-bottom: 14px;
+  --anav-top: 12px;
   --anav-z: 40;
   --anav-ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -279,7 +281,7 @@
     box-shadow 300ms var(--anav-ease);
 }
 /* Pressed glass swells, every layer of it together. */
-.anav__satellite:has(.anav__circle:active) > :not(.anav__badge) { transform: scale(1.05); }
+.anav__satellite:has(.anav__circle:active) > :not(.anav__badge) { transform: scale(1.02); }
 .anav__circle svg { width: 25px; height: 25px; }
 .anav__circle[data-on] { color: var(--anav-on); }
 .anav__satellite > .anav__badge { z-index: 5; }
@@ -291,6 +293,7 @@
   z-index: 5;
   display: flex;
   padding: var(--anav-pad, 6px);
+  height: var(--anav-sat, 68px);
 }
 
 /* The indicator is the selected state — it travels, the icons do not. It is
@@ -324,15 +327,6 @@
   transition: opacity 200ms var(--anav-ease);
 }
 .anav[data-pressed] .anav__capsule::before { opacity: 1; }
-/* The ring a landing bubble sends out; the component runs it through Web Animations. */
-.anav__ripple {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  pointer-events: none;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / calc(0.7 * var(--anav-rim)));
-}
 /* Over the lens: the bubble's own lit lip, offset the same way, no ring. */
 .anav__capsule::after {
   content: '';
@@ -346,7 +340,10 @@
 }
 
 .anav__btn {
-  position: relative;
+  /* Slots move with transforms; only the outer glass changes its layout width. */
+  position: absolute;
+  top: var(--anav-pad, 6px);
+  left: var(--anav-pad, 6px);
   z-index: 1;
   flex: none;
   overflow: hidden;
@@ -383,22 +380,19 @@
 .anav__tool[data-on] { color: var(--anav-accent); }
 .anav__tool:active .anav__glyph { transform: scale(0.88); }
 
-/* The wrapper the magnet moves: a glyph leans toward the bubble as it passes
-   and swells a little under it. Its own transform stays free for the lift
-   style and the landing bounce. */
+/* During a scrub the glyph responds subtly to the held capsule. */
 .anav__magnet {
   display: grid;
   place-items: center;
   will-change: transform;
 }
-/* The landing bounce is driven from the component (Web Animations), so the
-   first paint never pops and a re-render never replays it. */
+/* Lift is a retargetable state transition; selection never replays keyframes. */
 .anav__glyph {
   display: grid;
   place-items: center;
   width: 25px;
   height: 25px;
-  transition: transform 260ms var(--anav-ease), filter 260ms var(--anav-ease);
+  transition: transform 160ms var(--anav-ease), filter 160ms var(--anav-ease);
 }
 
 /* ---------- Indicator styles ---------- */
@@ -439,6 +433,8 @@
   transform: translateY(-1.5px) scale(1.12);
   filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--anav-accent) 45%, transparent));
 }
+
+.anav[data-keyboard] .anav__glyph { transition: none; }
 
 /* ---------- Segments: what fills the pill in the wide modes ---------- */
 
@@ -619,6 +615,132 @@
 .anav__secondary:active,
 .anav__primary:active { transform: scale(0.97); }
 
+/* ---------- Placement: the band at the top of a regular-width view ---------- */
+
+/* At iPad and Mac widths the guideline puts the tab bar near the top, icons
+   beside labels, sharing one band with the toolbar: Back on the leading edge,
+   the tabs in the centre, search and the one prominent action trailing. */
+.anav[data-placement='top'] {
+  top: calc(var(--anav-top) + env(safe-area-inset-top, 0px));
+  bottom: auto;
+  transition: none;
+}
+/* Regular width: the glyph and its name side by side, in cells one width. */
+.anav[data-placement='top'] .anav__magnet {
+  grid-auto-flow: column;
+  align-items: center;
+  column-gap: 7px;
+}
+.anav[data-placement='top'] .anav__glyph,
+.anav[data-placement='top'] .anav__btn svg,
+.anav[data-placement='top'] .anav__circle svg {
+  width: 20px;
+  height: 20px;
+}
+.anav[data-placement='top'] .anav__label {
+  max-width: none;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+.anav[data-placement='top'] .anav__badge {
+  top: 3px;
+  right: 6px;
+}
+/* The stand-in that measures each name's natural width; never seen. */
+.anav__measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* The trailing section: one glass body, as wide as its items. */
+.anav__satellite--group {
+  width: auto;
+  min-width: var(--anav-sat, 68px);
+}
+.anav__row {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 var(--anav-pad, 6px);
+  gap: 2px;
+}
+.anav__item {
+  display: flex;
+  align-items: center;
+  height: calc(100% - var(--anav-pad, 6px) * 2);
+}
+/* An action in the section: a symbol with no bezel; the section is its container. */
+.anav__iconButton {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-width: calc(var(--anav-sat, 68px) - var(--anav-pad, 6px) * 2);
+  padding: 0 4px;
+  border-radius: var(--anav-r-inner, 28px);
+  color: var(--anav-fg);
+  transition: color 160ms ease;
+}
+.anav__iconButton svg { width: 20px; height: 20px; }
+.anav__iconButton[data-on] { color: var(--anav-accent); }
+.anav__iconButton:active .anav__glyph { transform: scale(0.88); }
+.anav__iconButton > .anav__badge { top: -4px; right: -2px; }
+/* The search field, a fixed width, so the band never has to guess. */
+.anav__fieldItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 260px;
+  height: 100%;
+  padding-left: 2px;
+  border-radius: var(--anav-r-inner, 28px);
+  background: color-mix(in srgb, var(--anav-fg) 6%, transparent);
+  color: var(--anav-fg);
+}
+.anav__fieldItem .anav__fieldIcon { margin-left: 8px; width: 22px; height: 22px; }
+.anav__fieldItem .anav__fieldIcon svg { width: 18px; height: 18px; }
+.anav__fieldItem .anav__clear { width: 28px; height: 28px; margin-right: 4px; }
+.anav__count {
+  padding: 0 8px 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: var(--anav-fg);
+}
+/* The one prominent action, tinted; and the quiet secondary beside it. */
+.anav__prominent,
+.anav__quiet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: transform 160ms var(--anav-ease), background-color 300ms var(--anav-ease), color 200ms ease;
+}
+.anav__prominent {
+  background: var(--anav-accent);
+  color: var(--anav-accent-fg);
+  font-weight: 660;
+}
+.anav__quiet {
+  color: var(--anav-fg);
+  background: color-mix(in srgb, var(--anav-fg) 9%, transparent);
+}
+.anav__prominent:active,
+.anav__quiet:active { transform: scale(0.97); }
+
 /* ---------- Badge ---------- */
 
 .anav__badge {
@@ -651,6 +773,16 @@
   .anav *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+  .anav__satellite:has(.anav__circle:active) > :not(.anav__badge),
+  .anav__tool:active .anav__glyph,
+  .anav__cta:active,
+  .anav__clear:active,
+  .anav__selectDone:active,
+  .anav__secondary:active,
+  .anav__primary:active,
+  .anav[data-indicator='lift'] .anav__btn[data-active] .anav__glyph {
+    transform: none;
   }
 }
 

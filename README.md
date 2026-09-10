@@ -173,6 +173,7 @@ tap or arrow key then calls `onExpand` instead of switching.
 | `tone`      | `'auto' \| 'light' \| 'dark'` | which way the bar faces; default `auto` reads the page (see Tone) |
 | `quality`   | `'auto' \| 'full' \| 'edges' \| 'off'` | how much lens the device is asked for; default `auto` (see Performance) |
 | `labelled`  | `boolean`                     | print each section's and tool's name under its glyph         |
+| `placement` | `'auto' \| 'bottom' \| 'top'` | where the bar lives; default `auto` switches on width (see Placement) |
 | `labels`    | `Partial<NavLabels>`          | `back`, `close`, `tools`, `selectDone`, `sections`, `done`, `search`, `clear`, `badge(n)`, `expandHint(label)` |
 | `backIcon`  | `ReactNode`                   | replaces the built-in chevron                                |
 | `metrics`   | `Partial<NavMetrics>`         | `slot`, `pad`, `gap`, `edge`, `buyInset`, `buyMaxWidth`      |
@@ -180,6 +181,43 @@ tap or arrow key then calls `onExpand` instead of switching.
 
 Icons are any component accepting `className`; they are sized to 25px by the
 stylesheet and coloured with `currentColor`.
+
+## Placement
+
+On a phone the bar floats at the bottom, within reach of the thumb. At
+regular width — an iPad, a Mac window, anything 768 CSS px or wider — Apple's
+Human Interface Guidelines put the tab bar "near the top of the screen", with
+"the icons and labels side by side", sharing one band with the toolbar: Back
+and Close on the leading edge, the tabs in the centre, "an optional search
+field" and "a primary action like Done" on the trailing edge, and only one
+primary action. `placement="auto"` (the default) does exactly that, switching
+on width rather than device, because Safari on an iPad reports itself as a
+Mac and the guideline's own model is compact versus regular size class.
+`placement="bottom"` or `"top"` pins it.
+
+At the top the cluster is three glass sections, the way iPadOS 26 draws them:
+
+| mode      | leading | centre                              | trailing section                 |
+| --------- | ------- | ----------------------------------- | -------------------------------- |
+| `tabs`    | —       | the tabs, glyph beside name         | —                                |
+| `context` | Back    | the tabs                            | the action                       |
+| `buy`     | Back    | the tabs                            | the action, the call to action   |
+| `search`  | Back    | the tabs                            | the action, the field            |
+| `toolbar` | Back    | the tabs                            | the tools, the action            |
+| `select`  | Close   | the tabs                            | the action, the count, Done      |
+| `confirm` | Close   | the tabs                            | Cancel, the primary              |
+| `hidden`  | slides off the top edge                                                    |
+
+The tabs stay through every mode, since at this width there is room for them,
+and what a mode adds goes to the trailing section: the one prominent action is
+last and tinted, the secondary beside it quiet, the field a fixed 260 px, the
+actions plain symbols with no bezel because, as the guideline says, the
+section is their container. The band is 50 px tall with 40 px cells. Every
+cell is one width, the widest name's, measured from stand-ins before paint,
+which is what lets the capsule, the scrub and the magnet keep the arithmetic
+of a compact pill. The trailing section is frost, tint and shine without a
+lens. `minimized` has no effect at the top, where the guideline asks that the
+tab bar stay visible.
 
 ## Tone
 

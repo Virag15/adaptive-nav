@@ -10,6 +10,7 @@ import {
   type GlassPreset,
   type IndicatorStyle,
   type NavMode,
+  type PlacementSetting,
   type Quality,
   type TabOption,
   type ToneSetting,
@@ -47,6 +48,7 @@ const TABS: TabOption[] = [
 const MODES: NavMode[] = ['tabs', 'context', 'buy', 'search', 'toolbar', 'select', 'confirm', 'hidden'];
 const TONES: ToneSetting[] = ['auto', 'light', 'dark'];
 const QUALITIES: Quality[] = ['auto', 'full', 'edges', 'off'];
+const PLACEMENTS: PlacementSetting[] = ['auto', 'bottom', 'top'];
 const PRESETS = Object.keys(GLASS_PRESETS) as GlassPreset[];
 const INDICATORS: IndicatorStyle[] = ['capsule', 'dot', 'glow', 'lift'];
 /** The playground opens on the material this bar is about. */
@@ -76,6 +78,7 @@ function Playground() {
   const [dark, setDark] = useState(false);
   const [tone, setTone] = useState<ToneSetting>('auto');
   const [quality, setQuality] = useState<Quality>('auto');
+  const [placement, setPlacement] = useState<PlacementSetting>('auto');
   const [preset, setPreset] = useState<GlassPreset>(FIRST_PRESET);
   const [indicator, setIndicator] = useState<IndicatorStyle>('capsule');
   const [hue, setHue] = useState(252);
@@ -126,6 +129,14 @@ function Playground() {
           {TONES.map((t) => (
             <button key={t} id={`tone-${t}`} aria-pressed={tone === t} onClick={() => setTone(t)}>
               {t}
+            </button>
+          ))}
+        </div>
+        <div className="row">
+          <b>placement</b>
+          {PLACEMENTS.map((p) => (
+            <button key={p} id={`placement-${p}`} aria-pressed={placement === p} onClick={() => setPlacement(p)}>
+              {p}
             </button>
           ))}
         </div>
@@ -271,6 +282,7 @@ function Playground() {
         indicator={indicator}
         tone={tone}
         quality={quality}
+        placement={placement}
         onChange={(id) => {
           setTab(id);
           note('change:' + id);
