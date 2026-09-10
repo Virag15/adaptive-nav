@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="icon" href="data:," />
+<title>adaptive-nav playground</title>
+<!-- No reset and no design-system CSS on purpose: the bar must look right on
+     its own stylesheet alone. The one rule below is the documented way to
+     theme it: tokens on :root beat the package defaults. -->
+<style>
+  body { margin: 0; font: 400 100%/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #efeff2; color: #0b0b0c; }
+  :root.dark { --anav-glass: rgb(28 28 30 / 0.82); --anav-fg: #fff; --anav-fg-muted: rgb(255 255 255 / 0.55); --anav-indicator: rgb(255 255 255 / 0.16); --anav-solid: #1c1c1e; }
+  :root.dark body { background: #111; color: #eee; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; padding: 20px; }
+  .controls button { font: inherit; padding: 6px 12px; border-radius: 999px; border: 1px solid rgb(0 0 0 / 0.15); background: #fff; color: #0b0b0c; }
+  .controls button[aria-pressed="true"] { background: #0b0b0c; color: #fff; }
+  #log { margin: 0 20px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: 0.7; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/main.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,289 @@
+/* ============================================================
+   @virag/adaptive-nav — a floating glass pill with satellite circles
+
+   Every class is prefixed `anav`. Theme it through the --anav-* tokens below:
+   they are declared at zero specificity, so a host `:root { --anav-glass: … }`
+   wins whatever the import order, and a `.anav { … }` rule scopes an override
+   to one bar. The geometry tokens (--anav-slot, --anav-sat, --anav-pad,
+   --anav-gap, --anav-r-outer, --anav-r-inner) are written by the component.
+   ============================================================ */
+
+:where(:root) {
+  /* The translucent surface and the blur that sells it. */
+  --anav-glass: rgb(255 255 255 / 0.88);
+  --anav-glass-blur: blur(20px) saturate(160%);
+  /* What the surface becomes when the user asks for reduced transparency. */
+  --anav-solid: #fff;
+  --anav-fg: #0b0b0c;
+  --anav-fg-muted: #8a8a8f;
+  /* The travelling selection indicator, and its colour on a solid surface. */
+  --anav-indicator: #fff;
+  --anav-indicator-solid: rgb(120 120 128 / 0.14);
+  /* Buy mode's call to action. */
+  --anav-accent: #5433eb;
+  --anav-accent-fg: #fff;
+  /* A toggled action circle (saved, following). */
+  --anav-on: #ff3b30;
+  --anav-badge: #ff3b30;
+  --anav-badge-fg: #fff;
+  --anav-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.04),
+    0 8px 30px rgb(0 0 0 / 0.14),
+    0 2px 8px rgb(0 0 0 / 0.06);
+  --anav-indicator-shadow: 0 2px 8px rgb(0 0 0 / 0.12), 0 0 0 0.5px rgb(0 0 0 / 0.03);
+  /* Distance from the bottom edge, before the safe-area inset is added. */
+  --anav-bottom: 14px;
+  --anav-z: 40;
+  --anav-ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* ---------- Own resets, so the bar needs nothing from the host ---------- */
+
+.anav,
+.anav *,
+.anav *::before,
+.anav *::after {
+  box-sizing: border-box;
+}
+/* Zero specificity, so every single-class rule below still wins over the reset. */
+:where(.anav button) {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.anav button:focus-visible {
+  outline: 2px solid var(--anav-accent);
+  outline-offset: 2px;
+}
+.anav__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Frame ---------- */
+
+.anav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--anav-bottom) + env(safe-area-inset-bottom, 0px));
+  z-index: var(--anav-z);
+  display: flex;
+  justify-content: center;
+  /* Only the controls catch taps; the gaps between them let the page through. */
+  pointer-events: none;
+}
+
+/* Width is driven by the mode; centring comes from the flex parent, so the
+   width can animate without fighting a translate. */
+.anav__pill {
+  position: relative;
+  pointer-events: auto;
+}
+
+/* The glass is its own layer, stacked above the satellites, so a circle can
+   start underneath it and slide out — it comes out of the bar, not beside it. */
+.anav__surface,
+.anav__circle {
+  /* Resolved by the component from one capsule rule; see geometry.ts. */
+  border-radius: var(--anav-r-outer, 34px);
+  background: var(--anav-glass);
+  /* Prefixed first: lightningcss (Vite's minifier) keeps only the last of the
+     pair when it has no browser targets, and the unprefixed one is the one
+     every current browser needs. */
+  -webkit-backdrop-filter: var(--anav-glass-blur);
+  backdrop-filter: var(--anav-glass-blur);
+  box-shadow: var(--anav-shadow);
+}
+.anav__surface {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ---------- Satellites ---------- */
+
+.anav__satellite {
+  position: absolute;
+  top: 0;
+  z-index: 0;
+  width: var(--anav-sat, 68px);
+  height: var(--anav-sat, 68px);
+  pointer-events: auto;
+  will-change: transform, opacity;
+}
+.anav__satellite--leading { right: calc(100% + var(--anav-gap, 8px)); }
+.anav__satellite--trailing { left: calc(100% + var(--anav-gap, 8px)); }
+
+/* The button is a separate element from the animated wrapper, so press
+   feedback and the emerge motion never write the same transform. */
+.anav__circle {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--anav-fg);
+  transition: transform 160ms var(--anav-ease), color 160ms ease;
+}
+.anav__circle:active { transform: scale(0.92); }
+.anav__circle svg { width: 25px; height: 25px; }
+.anav__circle[data-on] { color: var(--anav-on); }
+
+/* ---------- Tabs ---------- */
+
+.anav__track {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  padding: var(--anav-pad, 6px);
+}
+
+/* The indicator is the selected state — it travels, the icons do not. */
+.anav__capsule {
+  position: absolute;
+  top: var(--anav-pad, 6px);
+  left: var(--anav-pad, 6px);
+  border-radius: var(--anav-r-inner, 28px);
+  background: var(--anav-indicator);
+  box-shadow: var(--anav-indicator-shadow);
+  will-change: transform;
+}
+
+.anav__btn {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border-radius: var(--anav-r-inner, 28px);
+  color: var(--anav-fg-muted);
+  transition: color 200ms ease;
+}
+.anav__btn[data-active] { color: var(--anav-fg); }
+.anav__btn svg { width: 25px; height: 25px; }
+
+.anav__glyph {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+}
+
+/* ---------- Buy mode: the accent segment that fills the pill ---------- */
+
+/* Zero-width outside buy mode: the padding lives on the inner span, so the
+   outer box collapses completely instead of leaving 36px hanging off the pill. */
+.anav__cta {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  border-radius: var(--anav-r-inner, 28px);
+  background: var(--anav-accent);
+  color: var(--anav-accent-fg);
+  /* Label and price must share ~160px on a 360px phone once Back and the
+     action take their circles; the type eases down rather than the price dropping. */
+  font-size: clamp(13.5px, 3.9vw, 15.5px);
+  font-weight: 660;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: transform 160ms var(--anav-ease);
+}
+.anav__cta:active { transform: scale(0.97); }
+.anav__ctaInner {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 16px;
+}
+.anav__ctaLabel {
+  position: relative;
+  display: grid;
+}
+.anav__ctaLabel > span {
+  grid-area: 1 / 1;
+  transition: opacity 180ms var(--anav-ease), transform 180ms var(--anav-ease);
+}
+.anav__ctaLabel > span:last-child { opacity: 0; transform: translateY(6px); }
+.anav__ctaLabel[data-confirmed] > span:first-child { opacity: 0; transform: translateY(-6px); }
+.anav__ctaLabel[data-confirmed] > span:last-child { opacity: 1; transform: none; }
+.anav__ctaPrice {
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.86;
+}
+
+/* ---------- Badge ---------- */
+
+.anav__badge {
+  position: absolute;
+  /* Pinned to the glyph's corner, whatever the slot or circle size. */
+  top: calc(50% - 17.5px);
+  right: calc(50% - 17.5px);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--anav-badge);
+  color: var(--anav-badge-fg);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
+}
+
+/* ---------- User preferences ---------- */
+
+/* Reduced motion keeps the feedback (opacity, colour) and drops the travel.
+   The springs are handled in the component via useReducedMotion. */
+@media (prefers-reduced-motion: reduce) {
+  .anav *,
+  .anav *::before,
+  .anav *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Solid surfaces: bypasses the glass token entirely, so a themed host still
+   gets an opaque bar when the user asks for one. */
+@media (prefers-reduced-transparency: reduce) {
+  .anav__surface,
+  .anav__circle {
+    background: var(--anav-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .anav__capsule {
+    background: var(--anav-indicator-solid);
+    box-shadow: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .anav__surface,
+  .anav__circle {
+    background: var(--anav-solid);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.3), 0 8px 30px rgb(0 0 0 / 0.18);
+  }
+}
