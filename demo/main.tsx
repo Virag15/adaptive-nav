@@ -10,6 +10,7 @@ import {
   type GlassPreset,
   type IndicatorStyle,
   type NavMode,
+  type Quality,
   type TabOption,
   type ToneSetting,
 } from '../src';
@@ -45,6 +46,7 @@ const TABS: TabOption[] = [
 
 const MODES: NavMode[] = ['tabs', 'context', 'buy', 'search', 'toolbar', 'select', 'confirm', 'hidden'];
 const TONES: ToneSetting[] = ['auto', 'light', 'dark'];
+const QUALITIES: Quality[] = ['auto', 'full', 'edges', 'off'];
 const PRESETS = Object.keys(GLASS_PRESETS) as GlassPreset[];
 const INDICATORS: IndicatorStyle[] = ['capsule', 'dot', 'glow', 'lift'];
 /** The playground opens on the material this bar is about. */
@@ -73,6 +75,7 @@ function Playground() {
   const [labelled, setLabelled] = useState(false);
   const [dark, setDark] = useState(false);
   const [tone, setTone] = useState<ToneSetting>('auto');
+  const [quality, setQuality] = useState<Quality>('auto');
   const [preset, setPreset] = useState<GlassPreset>(FIRST_PRESET);
   const [indicator, setIndicator] = useState<IndicatorStyle>('capsule');
   const [hue, setHue] = useState(252);
@@ -123,6 +126,14 @@ function Playground() {
           {TONES.map((t) => (
             <button key={t} id={`tone-${t}`} aria-pressed={tone === t} onClick={() => setTone(t)}>
               {t}
+            </button>
+          ))}
+        </div>
+        <div className="row">
+          <b>quality</b>
+          {QUALITIES.map((q) => (
+            <button key={q} id={`quality-${q}`} aria-pressed={quality === q} onClick={() => setQuality(q)}>
+              {q}
             </button>
           ))}
         </div>
@@ -259,6 +270,7 @@ function Playground() {
         value={tab}
         indicator={indicator}
         tone={tone}
+        quality={quality}
         onChange={(id) => {
           setTab(id);
           note('change:' + id);

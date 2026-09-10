@@ -18,3 +18,6 @@ export type { GlassConfig, GlassInput, GlassPreset, GlassVars } from './glass';
 export { getGlobalGlass, setGlobalGlass, useGlass } from './useGlass';
 export { useBackdropTone } from './useBackdropTone';
 export type { Tone, ToneSetting } from './tone';
+export { resolveQuality, isChromium, isLowEnd } from './quality';
+export type { Environment, Quality, Rendition } from './quality';
+export { useEnvironment } from './useEnvironment';

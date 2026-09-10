@@ -19,6 +19,7 @@ import {
   useSpring,
   useTransform,
   useVelocity,
+  type MotionValue,
   type Transition,
 } from 'motion/react';
 import { Satellite } from './Satellite';
@@ -53,6 +54,8 @@ import {
 import { glassVars, type GlassInput } from './glass';
 import { useGlass } from './useGlass';
 import { useBackdropTone } from './useBackdropTone';
+import { resolveQuality, type Quality } from './quality';
+import { useEnvironment } from './useEnvironment';
 import type { ToneSetting } from './tone';
 import type {
   BuyAction,
@@ -101,6 +104,11 @@ export type AdaptiveNavProps = {
    * glass with white ink over dark content; a tone pins it.
    */
   tone?: ToneSetting;
+  /**
+   * How much of the lens the device is asked for. `auto` reads the device;
+   * `edges` bends the pill's rim only; `off` is frost, tint and shine alone.
+   */
+  quality?: Quality;
   /** Override the strings assistive tech reads; defaults are English. */
   labels?: Partial<NavLabels>;
   /** Replaces the built-in chevron (or cross) inside the left circle. */
@@ -138,6 +146,12 @@ const STRETCH_MAX = 0.22;
 const PRESS_SCALE = 1.05;
 /** How much finger history feeds the release velocity. */
 const TRAIL_MS = 80;
+/**
+ * The magnet: a glyph leans toward the bubble as it passes, most (a quarter
+ * of this) when the bubble is half a slot away, and swells a little under it.
+ */
+const MAGNET_PX = 12;
+const MAGNET_SCALE = 0.05;
 
 const POP_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 const POP: Record<'rest' | 'lift', Keyframe[]> = {
@@ -148,6 +162,11 @@ const POP: Record<'rest' | 'lift', Keyframe[]> = {
     { transform: 'translateY(-1.5px) scale(1.12)' },
   ],
 };
+const RIPPLE: Keyframe[] = [
+  { transform: 'scale(1)', opacity: 0.7 },
+  { transform: 'scale(1.4)', opacity: 0 },
+];
+const BADGE_POP: Keyframe[] = [{ transform: 'scale(1)' }, { transform: 'scale(1.35)', offset: 0.45 }, { transform: 'scale(1)' }];
 
 type Press = {
   id: number;
@@ -211,9 +230,26 @@ function useKeyboardInset(enabled: boolean) {
   return inset;
 }
 
+/** A count that pops when it changes; the visually hidden text beside it is what is read aloud. */
+function Badge({ count, reduce }: { count: number; reduce: boolean }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const shown = useRef(count);
+  useEffect(() => {
+    if (shown.current === count) return;
+    shown.current = count;
+    if (!reduce) ref.current?.animate?.(BADGE_POP, { duration: 360, easing: POP_EASE });
+  }, [count, reduce]);
+  return (
+    <span ref={ref} className="anav__badge" aria-hidden>
+      {count}
+    </span>
+  );
+}
+
 /**
  * One of the things that fill the pill in a wide mode. Zero-width and inert
- * outside its own mode; grows from nothing as the pill widens into it.
+ * outside its own mode; it materialises — sharpens from a blur as it scales
+ * up — rather than merely fading, so it reads as glass arriving.
  */
 function Segment({
   name,
@@ -236,14 +272,108 @@ function Segment({
       aria-hidden={!active || undefined}
       inert={!active || undefined}
       initial={false}
-      animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.92 }}
+      animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.92, filter: active ? 'blur(0px)' : 'blur(6px)' }}
       // The shape spring's tail is right for width, wrong for opacity — it
       // would leave the label translucent long after it arrived.
-      transition={{ scale: shape, opacity: active ? FADE_IN : FADE_OUT }}
+      transition={{ scale: shape, opacity: active ? FADE_IN : FADE_OUT, filter: active ? FADE_IN : FADE_OUT }}
       style={{ height, pointerEvents: active ? 'auto' : 'none' }}
     >
       {children}
     </motion.div>
+  );
+}
+
+type TabHandlers = {
+  down: (e: ReactPointerEvent<HTMLButtonElement>, id: string) => void;
+  move: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  up: () => void;
+  cancel: () => void;
+  key: (e: ReactKeyboardEvent<HTMLButtonElement>) => void;
+  click: (e: ReactMouseEvent<HTMLButtonElement>, id: string) => void;
+};
+
+/**
+ * One section. Its glyph rides a magnet driven by the bubble's position: it
+ * leans toward the bubble as it passes and swells a little under it, on the
+ * compositor, with no render in between.
+ */
+function Tab({
+  tab,
+  index,
+  slot,
+  x,
+  magnet,
+  hidden,
+  isValue,
+  active,
+  label,
+  labelled,
+  shape,
+  reduce,
+  badgeText,
+  handlers,
+}: {
+  tab: TabOption;
+  index: number;
+  slot: number;
+  x: MotionValue<number>;
+  magnet: boolean;
+  hidden: boolean;
+  isValue: boolean;
+  active: boolean;
+  label: string;
+  labelled: boolean;
+  shape: Transition;
+  reduce: boolean;
+  badgeText: ReactNode;
+  handlers: TabHandlers;
+}) {
+  // The bubble's centre sits slot/2 beyond x; so does this glyph's beyond
+  // index·slot, so their distance in slots is simply this.
+  const pull = useTransform(x, (v) => {
+    if (!magnet) return 0;
+    const d = (v - index * slot) / slot;
+    return Math.abs(d) >= 1 ? 0 : MAGNET_PX * d * (1 - Math.abs(d));
+  });
+  const swell = useTransform(x, (v) => {
+    if (!magnet) return 1;
+    const d = Math.abs(v - index * slot) / slot;
+    return d >= 1 ? 1 : 1 + MAGNET_SCALE * (1 - d) * (1 - d);
+  });
+  return (
+    <motion.button
+      type="button"
+      role="tab"
+      aria-selected={isValue}
+      aria-label={label}
+      aria-hidden={hidden || undefined}
+      tabIndex={hidden ? -1 : isValue ? 0 : -1}
+      data-active={active || undefined}
+      className="anav__btn"
+      initial={false}
+      animate={{
+        width: hidden ? 0 : slot,
+        opacity: hidden ? 0 : 1,
+        scale: hidden ? 0.6 : 1,
+      }}
+      transition={shape}
+      style={{ height: slot, pointerEvents: hidden ? 'none' : 'auto' }}
+      onPointerDown={(e) => handlers.down(e, tab.id)}
+      onPointerMove={handlers.move}
+      onPointerUp={handlers.up}
+      onPointerCancel={handlers.cancel}
+      onKeyDown={handlers.key}
+      onClick={(e) => handlers.click(e, tab.id)}
+    >
+      <motion.span className="anav__magnet" style={{ x: pull, scale: swell }}>
+        <span className="anav__glyph">
+          <tab.Icon />
+        </span>
+        {labelled && <span className="anav__label">{tab.label}</span>}
+      </motion.span>
+      {tab.badge ? <Badge count={tab.badge} reduce={reduce} /> : null}
+      {badgeText}
+    </motion.button>
   );
 }
 
@@ -264,6 +394,7 @@ export function AdaptiveNav({
   glass,
   indicator = 'capsule',
   tone: toneSetting = 'auto',
+  quality = 'auto',
   labels,
   backIcon,
   metrics,
@@ -293,9 +424,17 @@ export function AdaptiveNav({
   const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rippleRef = useRef<HTMLSpanElement>(null);
 
   const g = useGlass(glass);
-  const lens = g.refraction > 0;
+  // What the lens costs is decided per device; what it looks like, per material.
+  const rendition = resolveQuality(quality, useEnvironment());
+  const bends = g.refraction > 0;
+  const pillLens = bends && rendition.pill;
+  const circleLens = bends && rendition.circles;
+  /** Only the travelling capsule is a bubble; a dot or a glow has no lip to bend at. */
+  const bubbleLens = pillLens && rendition.bubble && indicator === 'capsule';
+  const dispersion = rendition.dispersion ? g.dispersion : 0;
   // url(#…) cannot carry the punctuation React puts around its ids.
   const filterId = 'anav-' + useId().replace(/[^\w-]/g, '');
 
@@ -321,6 +460,12 @@ export function AdaptiveNav({
   /** What the pill is sized around: the tabs shown, or the toolbar's tools. */
   const shown = toolbar ? (tools?.length ?? 0) : visibleCount;
 
+  /** The ring a landing bubble sends out. */
+  const ripple = useCallback(() => {
+    if (reduceMotion) return;
+    rippleRef.current?.animate?.(RIPPLE, { duration: 520, easing: POP_EASE });
+  }, [reduceMotion]);
+
   const capsuleTarget = indicatorOffset(visible, activeIndex, slot);
   const x = useMotionValue(capsuleTarget);
   const settled = useRef(false);
@@ -337,8 +482,8 @@ export function AdaptiveNav({
     if (press.current?.scrub) return;
     const spring = reduceMotion ? REDUCED_SPRING : released.current ? RELEASE_SPRING : SELECTION_SPRING;
     released.current = false;
-    animate(x, capsuleTarget, spring);
-  }, [capsuleTarget, x, reduceMotion]);
+    animate(x, capsuleTarget, { ...spring, onComplete: ripple });
+  }, [capsuleTarget, x, reduceMotion, ripple]);
 
   // Speed becomes shape: the capsule lengthens along its travel and thins to
   // keep its area, so a fast pass reads as motion rather than a strobe of
@@ -358,6 +503,8 @@ export function AdaptiveNav({
   const box = indicatorBox(indicator, slot, m.pad);
   const capsuleX = useTransform(x, (v) => v + box.dx);
   const showCapsule = !wide && !toolbar && indicator !== 'lift';
+  // The magnet only makes sense while every slot is where the arithmetic says.
+  const magnet = showCapsule && !minimized && !reduceMotion;
 
   // The glyph that has just become the selection lands with a small bounce.
   // Imperative, so the first paint does not pop and a re-render never replays it.
@@ -419,7 +566,11 @@ export function AdaptiveNav({
       // A scrub is a selection, not a tap: landing on the current tab changes nothing.
       if (id !== value) onChange(id);
       // The spring leaves at the finger's speed, so there is no seam between drag and settle.
-      animate(x, idx * slot, reduceMotion ? REDUCED_SPRING : { ...RELEASE_SPRING, velocity });
+      animate(
+        x,
+        idx * slot,
+        reduceMotion ? REDUCED_SPRING : { ...RELEASE_SPRING, velocity, onComplete: ripple },
+      );
     }
     endPress();
   };
@@ -560,12 +711,23 @@ export function AdaptiveNav({
     else if (e.key === 'Escape') onBack?.();
   };
 
+  const handlers: TabHandlers = {
+    down: onPointerDown,
+    move: onPointerMove,
+    up: onPointerUp,
+    cancel: onPointerCancel,
+    key: onKeyDown,
+    click: onClick,
+  };
+
   const shape: Transition = reduceMotion ? { duration: 0 } : SHAPE_SPRING;
   const glyph = reduceMotion ? { duration: 0 } : GLYPH;
-  const width = pillWidth(mode, shown, slot, sat, vw, m);
+  // A wide pill reserves both satellite slots. When no circle hangs off the
+  // trailing end, the field takes that width instead of leaving it empty, and
+  // the pill shifts by half so its leading edge stays beside Back.
+  const freed = wide && !action ? sat + m.gap : 0;
+  const width = pillWidth(mode, shown, slot, sat, vw, m) + freed;
   const masks = useFrostMasks({ width, height: sat, circle: sat, refraction: g.refraction });
-  /** Only the travelling capsule is a bubble; a dot or a glow has no lip to bend at. */
-  const capsuleLens = lens && indicator === 'capsule' ? box.w : 0;
 
   // Which way the bar faces. Over dark content the material itself flips to
   // its dark base; a bar with its own `glass` writes the tokens inline, so the
@@ -573,12 +735,6 @@ export function AdaptiveNav({
   const tone = useBackdropTone(rootRef, toneSetting, `${mode}:${width}:${vw}`);
   const material = tone === 'dark' ? { ...g, base: g.baseDark } : g;
 
-  const badgeCount = (count?: number) =>
-    count ? (
-      <span className="anav__badge" aria-hidden>
-        {count}
-      </span>
-    ) : null;
   const badgeText = (count?: number) => (count ? <span className="anav__sr">{L.badge(count)}</span> : null);
 
   return (
@@ -593,6 +749,8 @@ export function AdaptiveNav({
       data-indicator={indicator}
       data-pressed={pressed || undefined}
       data-scrub={scrubbing || undefined}
+      data-pill-lens={pillLens || undefined}
+      data-circle-lens={circleLens || undefined}
       aria-hidden={hidden || undefined}
       inert={hidden || undefined}
       style={{
@@ -606,40 +764,47 @@ export function AdaptiveNav({
         ['--anav-r-outer' as string]: `${outerRadius}px`,
         ['--anav-r-inner' as string]: `${innerRadius}px`,
         ['--anav-keyboard' as string]: `${keyboard}px`,
-        ['--anav-refract-pill' as string]: lens ? `url(#${filterId}-pill)` : 'none',
-        ['--anav-refract-circle' as string]: lens ? `url(#${filterId}-circle)` : 'none',
-        ['--anav-refract-capsule' as string]: capsuleLens ? `url(#${filterId}-capsule)` : 'none',
+        ['--anav-refract-pill' as string]: pillLens ? `url(#${filterId}-pill)` : 'none',
+        ['--anav-refract-circle' as string]: circleLens ? `url(#${filterId}-circle)` : 'none',
+        ['--anav-refract-capsule' as string]: bubbleLens ? `url(#${filterId}-capsule)` : 'none',
         ['--anav-frost-mask-pill' as string]: masks.pill ? `url(${masks.pill})` : 'none',
         ['--anav-frost-mask-circle' as string]: masks.circle ? `url(${masks.circle})` : 'none',
       }}
     >
-      {lens && (
+      {pillLens && (
         <GlassFilters
           id={filterId}
           width={width}
           height={sat}
           circle={sat}
-          capsule={capsuleLens}
+          circles={circleLens}
+          capsule={bubbleLens ? box.w : 0}
+          blur={g.blur}
+          saturate={g.saturate}
           refraction={g.refraction}
-          dispersion={g.dispersion}
+          dispersion={dispersion}
+          masks={masks}
         />
       )}
 
       <motion.div
         className="anav__pill"
         initial={false}
-        // Hidden slides the whole cluster below the screen edge, shadow included.
-        animate={{ width, y: hidden ? sat + 96 : 0 }}
+        // Hidden slides the whole cluster below the screen edge, shadow
+        // included, shrinking a little as it goes so it reads as leaving.
+        animate={{ width, x: freed / 2, y: hidden ? sat + 96 : 0, scale: hidden ? 0.9 : 1 }}
         transition={shape}
+        style={{ transformOrigin: '50% 100%' }}
       >
-        {lens && <span className="anav__refract" aria-hidden />}
-        <span className="anav__frost" aria-hidden />
+        {pillLens && <span className="anav__refract" aria-hidden />}
+        <span className="anav__frost anav__frost--pill" aria-hidden />
         <span className="anav__surface" aria-hidden />
+        <span className="anav__edge anav__edge--pill" aria-hidden />
         <span className="anav__shine" aria-hidden />
 
         <AnimatePresence initial={false}>
           {pushed && (
-            <Satellite key="back" side="leading" tuck={sat + m.gap} reduce={reduceMotion} lens={lens}>
+            <Satellite key="back" side="leading" tuck={sat + m.gap} reduce={reduceMotion} lens={circleLens}>
               <button
                 type="button"
                 className="anav__circle"
@@ -666,46 +831,29 @@ export function AdaptiveNav({
             animate={{ opacity: showCapsule ? 1 : 0 }}
             transition={glyph}
           >
-            {capsuleLens > 0 && <span className="anav__refract--capsule" />}
+            {bubbleLens && <span className="anav__refract--capsule" />}
+            <span ref={rippleRef} className="anav__ripple" />
           </motion.span>
           {options.map((tab, i) => {
-            const isHidden = !visible[i];
             const isValue = tab.id === value;
-            const active = tab.id === activeId;
-            const label = minimized && isValue ? L.expandHint(tab.label) : tab.label;
             return (
-              <motion.button
+              <Tab
                 key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isValue}
-                aria-label={label}
-                aria-hidden={isHidden || undefined}
-                tabIndex={isHidden ? -1 : isValue ? 0 : -1}
-                data-active={active || undefined}
-                className="anav__btn"
-                initial={false}
-                animate={{
-                  width: isHidden ? 0 : slot,
-                  opacity: isHidden ? 0 : 1,
-                  scale: isHidden ? 0.6 : 1,
-                }}
-                transition={shape}
-                style={{ height: slot, pointerEvents: isHidden ? 'none' : 'auto' }}
-                onPointerDown={(e) => onPointerDown(e, tab.id)}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerCancel}
-                onKeyDown={onKeyDown}
-                onClick={(e) => onClick(e, tab.id)}
-              >
-                <span className="anav__glyph">
-                  <tab.Icon />
-                </span>
-                {labelled && <span className="anav__label">{tab.label}</span>}
-                {badgeCount(tab.badge)}
-                {badgeText(tab.badge)}
-              </motion.button>
+                tab={tab}
+                index={i}
+                slot={slot}
+                x={x}
+                magnet={magnet}
+                hidden={!visible[i]}
+                isValue={isValue}
+                active={tab.id === activeId}
+                label={minimized && isValue ? L.expandHint(tab.label) : tab.label}
+                labelled={labelled}
+                shape={shape}
+                reduce={reduceMotion}
+                badgeText={badgeText(tab.badge)}
+                handlers={handlers}
+              />
             );
           })}
 
@@ -726,11 +874,13 @@ export function AdaptiveNav({
               style={{ height: slot, pointerEvents: toolbar ? 'auto' : 'none' }}
               onClick={tool.onPress}
             >
-              <span className="anav__glyph">
-                <tool.Icon />
+              <span className="anav__magnet">
+                <span className="anav__glyph">
+                  <tool.Icon />
+                </span>
+                {labelled && <span className="anav__label">{tool.label}</span>}
               </span>
-              {labelled && <span className="anav__label">{tool.label}</span>}
-              {badgeCount(tool.badge)}
+              {tool.badge ? <Badge count={tool.badge} reduce={reduceMotion} /> : null}
               {badgeText(tool.badge)}
             </motion.button>
           ))}
@@ -823,8 +973,8 @@ export function AdaptiveNav({
               side="trailing"
               tuck={sat + m.gap}
               reduce={reduceMotion}
-              lens={lens}
-              badge={badgeCount(action.badge)}
+              lens={circleLens}
+              badge={action.badge ? <Badge count={action.badge} reduce={reduceMotion} /> : undefined}
             >
               <button
                 type="button"

@@ -10,8 +10,8 @@ import { EMERGE_SPRING, FADE_IN, FADE_OUT, RETREAT_SPRING } from './springs';
  * up as it settles.
  *
  * The glass is built in layers around the button (see the stylesheet): the
- * lens, the frost, the button itself carrying the tint, the shine, and the
- * badge above them all so the lens never bends it.
+ * lens, the frost, the button itself carrying the tint, the edge band, the
+ * shine, and the badge above them all so the lens never bends it.
  */
 export function Satellite({
   side,
@@ -55,6 +55,7 @@ export function Satellite({
       {lens && <span className="anav__refract anav__refract--circle" aria-hidden />}
       <span className="anav__frost anav__frost--circle" aria-hidden />
       {children}
+      <span className="anav__edge anav__edge--circle" aria-hidden />
       <span className="anav__shine anav__shine--circle" aria-hidden />
       {badge}
     </motion.div>

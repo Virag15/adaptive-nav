@@ -171,6 +171,7 @@ tap or arrow key then calls `onExpand` instead of switching.
 | `glass`     | `GlassPreset \| Partial<GlassConfig>` | this bar's material, laid over the global one; see Glass |
 | `indicator` | `'capsule' \| 'dot' \| 'glow' \| 'lift'` | how the selected tab is marked; default `capsule`  |
 | `tone`      | `'auto' \| 'light' \| 'dark'` | which way the bar faces; default `auto` reads the page (see Tone) |
+| `quality`   | `'auto' \| 'full' \| 'edges' \| 'off'` | how much lens the device is asked for; default `auto` (see Performance) |
 | `labelled`  | `boolean`                     | print each section's and tool's name under its glyph         |
 | `labels`    | `Partial<NavLabels>`          | `back`, `close`, `tools`, `selectDone`, `sections`, `done`, `search`, `clear`, `badge(n)`, `expandHint(label)` |
 | `backIcon`  | `ReactNode`                   | replaces the built-in chevron                                |
@@ -215,6 +216,32 @@ and a permitting server fix that), video, canvas, and `background-image: url()`.
 Where fewer than half the sample points are readable the bar keeps the tone it
 has; if a screen is built from such content, pin the tone for it.
 
+## Performance
+
+Every backdrop layer is a read of the page beneath it, filtered and painted
+back, on every frame in which anything under it moves. That is the cost that
+matters on a phone, and it is paid on the compositor and the GPU, not the main
+thread, so a frame counter will not show it. What can be counted is layers
+and passes:
+
+| view, liquid preset | before | now, `full` | now, `edges` | now, `off` |
+| ------------------- | ------ | ----------- | ------------ | ---------- |
+| tabs                | 3      | 2           | 1            | 1          |
+| context (two circles) | 7    | 4           | 3            | 3          |
+
+Three things got it there. On Chromium the frost and the lens of a shape are
+one SVG filter on one layer (blur, saturation, the rim mask and the bend, with
+`edgeMode="duplicate"` so the blur does not fade at the lip), where they were
+a CSS blur layer and a lens layer before. Dispersion, which triples the bend,
+runs on the pill alone. And `quality` decides per device: `auto` gives `full`
+to a capable Chromium, `edges` (the pill's rim in one pass, circles and bubble
+as plain frost) to one reporting four gigabytes or four cores or fewer, and
+`off` where SVG backdrop filters do not render or transparency is reduced. On
+an M1 the GPU process spends about a millisecond a frame on any of these; the
+difference will show on a mid-range Android, which is where `auto` earns its
+keep. Every animated property is a transform, an opacity or a filter, except
+the pill's width, which lays out.
+
 ## Gestures
 
 A tap highlights on pointer-down — the indicator swells a little and lights
@@ -226,10 +253,17 @@ the tab under it previews as you go. Letting go projects the finger's own
 velocity forward the way a scroll view does, tuned so a finger that was merely
 moving stays on its slot and a real flick jumps one; the settle spring leaves
 at the finger's speed so there is no seam between drag and animation. While it
-travels the indicator stretches along its motion in proportion to its speed and
-lands with one small wobble. Vertical movement is left to the page
-(`touch-action: pan-y`). The wide modes, the toolbar, hidden and the minimized
-bar do not scrub.
+travels the indicator stretches along its motion in proportion to its speed,
+the glyphs it passes lean toward it and swell a little beneath it (a magnet
+on the compositor, no render in between), and when it lands it settles with
+one small wobble and sends out a faint ring. Vertical movement is left to the
+page (`touch-action: pan-y`). The wide modes, the toolbar, hidden and the
+minimized bar do not scrub.
+
+Elsewhere: a segment filling the pill materialises — sharpens from a blur as
+it scales up — rather than fading; a badge pops when its count changes; the
+hidden bar shrinks a little as it leaves; circles come out of the pill
+squashed along the pull. All of it steps aside for `prefers-reduced-motion`.
 
 ## Glass
 
@@ -313,13 +347,25 @@ Dispersion runs the map three times at slightly different scales, keeps one
 channel from each pass and adds them, so the rim fringes red on one side and
 blue on the other.
 
-Browser support is the caveat. Chromium applies SVG filters to a backdrop and
-is where this was verified (the pill's pixels change only inside its own
-extent when refraction is toggled). Safari parses `backdrop-filter: url()` but
-does not render it, and `CSS.supports` says yes, so there is no feature test;
-the lens layer simply draws nothing there and the rim carries the glass. Firefox
-was not tested. The stylesheet keeps the lens on its own layer for exactly this
-reason: a browser that drops the declaration loses the lens, never the blur.
+### Safari and everything that is not Chromium
+
+Only Chromium applies an SVG filter to a backdrop. Safari parses
+`backdrop-filter: url()` and `CSS.supports` says yes, but nothing renders, so
+there is no feature test; instead the bar looks for `navigator.userAgentData`,
+a Chromium-only API whose brands say "Chromium" outright, and renders no lens
+layer anywhere else. What WebKit gets, and what was verified in Playwright's
+WebKit build at a phone viewport: the frost, masked thinner toward the lip so
+the rim shows the page crisply; the tint; the shine; the edge band, a ring of
+paint blended (`soft-light`, with a `multiply` hairline) with whatever is
+beneath so it brightens over light content and glints over dark, which is the
+closest a paint layer gets to a lip compressing the backdrop; and the tone
+sampler, which reads colours back through a one-pixel canvas because WebKit's
+`fillStyle` getter hands modern colour syntax back unparsed. One backdrop
+layer per shape. Tap and pointer scrub work there; frames stay under 20 ms
+while scrolling. Firefox was not tested and is treated as not Chromium.
+
+On Chromium with a lens the edge band steps back to under half strength, so
+it does not double what the lens already does.
 
 ## Indicator styles
 
@@ -423,9 +469,10 @@ npm run check       # tsc (strict) + node --test on geometry, glass and the lens
 ```
 
 The playground opens on the `liquid` preset and has every mode, a dark page,
-slot 44, minimized and labelled, the three tone settings, the four glass
-presets, the four indicator styles, and a slider for each glass knob (the
-sliders call `setGlobalGlass`, so they are the global option). It scrolls a
+slot 44, minimized and labelled, the three tone settings, the four quality
+settings, the four glass presets, the four indicator styles, and a slider for
+each glass knob (the sliders call `setGlobalGlass`, so they are the global
+option). It scrolls a
 busy page under the bar — tiles, stripes, a grid, and a near-black band the
 bar flips over — so the material has something to blur, tint, bend and read.
 It loads only the package stylesheet, so anything that looks wrong there is

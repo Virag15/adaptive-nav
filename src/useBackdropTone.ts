@@ -33,20 +33,35 @@ const TIMER_MS = 700;
 
 let scratch: CanvasRenderingContext2D | null | undefined;
 const colorCache = new Map<string, RGBA | null>();
+/** A colour no page is likely to paint, to tell a rejected value from a real one. */
+const SENTINEL = '#010203';
 
-/** Any CSS colour a computed style can hand back, normalised through a canvas when needed. */
+/**
+ * Any CSS colour a computed style can hand back. The rgb() and hex forms are
+ * parsed; anything else (oklab, color-mix…) is painted into a one-pixel
+ * canvas and read back as a pixel, which every engine agrees on — the
+ * `fillStyle` getter's string form is where they differ.
+ */
 function toRgba(css: string): RGBA | null {
   const hit = colorCache.get(css);
   if (hit !== undefined) return hit;
   let out = parseRgb(css) ?? parseHex(css);
-  if (!out && css !== 'none') {
-    if (scratch === undefined) scratch = document.createElement('canvas').getContext('2d');
+  if (!out && css !== 'none' && css !== SENTINEL) {
+    if (scratch === undefined) {
+      scratch = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+      if (scratch) {
+        scratch.canvas.width = 1;
+        scratch.canvas.height = 1;
+        scratch.globalCompositeOperation = 'copy';
+      }
+    }
     if (scratch) {
-      // A value the canvas rejects leaves the previous one in place, hence the reset.
-      scratch.fillStyle = '#010203';
+      // A value the canvas rejects leaves the previous one in place, hence the sentinel.
+      scratch.fillStyle = SENTINEL;
       scratch.fillStyle = css;
-      const norm = scratch.fillStyle as string;
-      if (norm !== '#010203') out = parseRgb(norm) ?? parseHex(norm);
+      scratch.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = scratch.getImageData(0, 0, 1, 1).data;
+      if (!(r === 1 && g === 2 && b === 3 && a === 255)) out = { r: r / 255, g: g / 255, b: b / 255, a: a / 255 };
     }
   }
   if (colorCache.size > 500) colorCache.clear();
