@@ -727,7 +727,9 @@ export function AdaptiveNav({
   // the pill shifts by half so its leading edge stays beside Back.
   const freed = wide && !action ? sat + m.gap : 0;
   const width = pillWidth(mode, shown, slot, sat, vw, m) + freed;
-  const masks = useFrostMasks({ width, height: sat, circle: sat, refraction: g.refraction });
+  // The frost thins toward the lip only inside the lens filter, where the bend
+  // explains it; a crisp ring without a bend reads as a cut-out.
+  const masks = useFrostMasks({ width, height: sat, circle: sat, refraction: pillLens ? g.refraction : 0 });
 
   // Which way the bar faces. Over dark content the material itself flips to
   // its dark base; a bar with its own `glass` writes the tokens inline, so the
@@ -767,8 +769,6 @@ export function AdaptiveNav({
         ['--anav-refract-pill' as string]: pillLens ? `url(#${filterId}-pill)` : 'none',
         ['--anav-refract-circle' as string]: circleLens ? `url(#${filterId}-circle)` : 'none',
         ['--anav-refract-capsule' as string]: bubbleLens ? `url(#${filterId}-capsule)` : 'none',
-        ['--anav-frost-mask-pill' as string]: masks.pill ? `url(${masks.pill})` : 'none',
-        ['--anav-frost-mask-circle' as string]: masks.circle ? `url(${masks.circle})` : 'none',
       }}
     >
       {pillLens && (

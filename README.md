@@ -317,18 +317,25 @@ The pill is four layers, back to front, and so is each circle:
 
 1. **Lens** — `backdrop-filter: url(#…)` on an SVG `feDisplacementMap`, only
    when `refraction` is above 0. This is what bends the backdrop at the lip.
-2. **Frost** — the backdrop blur and saturation. With a lens it is masked
-   thinner toward the lip (a per-size PNG the component rasterises), so the
-   bend there stays crisp while the middle stays frosted.
+2. **Frost** — the backdrop blur and saturation. Inside the lens filter it is
+   masked thinner toward the lip (a per-size PNG the component rasterises), so
+   the bend there stays crisp while the middle stays frosted. Without a lens
+   it is uniform to the edge: a crisp ring with no bend to explain it reads as
+   a cut-out.
 3. **Tint** — the material's colour, and the drop shadow.
-4. **Shine** — light on the slab: offset inner highlights that fall where the
-   surface faces the light (the whole top lip, the crowns of the round ends,
-   nothing on the sides), a fainter return on the far lip, a glow all round for
-   the brightening glass shows at grazing angles, and a 1px gradient ring.
+4. **Edge** — the light that gets into the slab: broad, soft, from above and
+   fainter from below, blended `soft-light` so it lifts what is beneath rather
+   than painting over it. Where a lens is bending for real it steps back.
+5. **Shine** — light on the lip: an inset highlight offset away from the light,
+   so it is widest where the surface faces the light (the crown of the top edge
+   and of the round ends) and tapers to nothing at the sides, with a fainter
+   return on the far lip. Nothing runs all the way round. A ring of any weight,
+   however faint, reads as a stroke, and glass has no stroke; the first version
+   had three and looked drawn.
 
 They are siblings, never nested: an element with a backdrop filter starts a new
-backdrop root, and a filter inside it would see only the frost. The shine is
-plain CSS and works everywhere; so does the frost and the tint.
+backdrop root, and a filter inside it would see only the frost. The edge and
+the shine are plain CSS and work everywhere; so do the frost and the tint.
 
 ### How the lens works
 
@@ -354,18 +361,12 @@ Only Chromium applies an SVG filter to a backdrop. Safari parses
 there is no feature test; instead the bar looks for `navigator.userAgentData`,
 a Chromium-only API whose brands say "Chromium" outright, and renders no lens
 layer anywhere else. What WebKit gets, and what was verified in Playwright's
-WebKit build at a phone viewport: the frost, masked thinner toward the lip so
-the rim shows the page crisply; the tint; the shine; the edge band, a ring of
-paint blended (`soft-light`, with a `multiply` hairline) with whatever is
-beneath so it brightens over light content and glints over dark, which is the
-closest a paint layer gets to a lip compressing the backdrop; and the tone
-sampler, which reads colours back through a one-pixel canvas because WebKit's
-`fillStyle` getter hands modern colour syntax back unparsed. One backdrop
-layer per shape. Tap and pointer scrub work there; frames stay under 20 ms
-while scrolling. Firefox was not tested and is treated as not Chromium.
-
-On Chromium with a lens the edge band steps back to under half strength, so
-it does not double what the lens already does.
+WebKit build at a phone viewport: the frost, uniform to the edge; the tint;
+the edge light and the lip highlight, both directional, both plain paint; and
+the tone sampler, which reads colours back through a one-pixel canvas because
+WebKit's `fillStyle` getter hands modern colour syntax back unparsed. One
+backdrop layer per shape. Tap and pointer scrub work there; frames stay under
+20 ms while scrolling. Firefox was not tested and is treated as not Chromium.
 
 ## Indicator styles
 
@@ -427,9 +428,9 @@ plus `--anav-fg: #fff; --anav-fg-muted: rgb(255 255 255 / 0.55); --anav-indicato
 
 The component writes `--anav-slot`, `--anav-sat`, `--anav-pad`, `--anav-gap`,
 `--anav-r-outer`, `--anav-r-inner`, `--anav-keyboard` (the on-screen keyboard's
-height in search mode) and the lens references (`--anav-refract-*`,
-`--anav-frost-mask-*`) on its root; read the geometry ones if you nest
-something that has to share the bar's radii.
+height in search mode) and the lens references (`--anav-refract-*`) on its
+root; read the geometry ones if you nest something that has to share the
+bar's radii.
 
 ## Layout helpers
 
