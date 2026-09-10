@@ -26,16 +26,17 @@ import { Satellite } from './Satellite';
 import { GlassFilters, useFrostMasks } from './GlassFilters';
 import { IconBack, IconClear, IconSearch } from './icons';
 import {
-  DEFAULT_METRICS,
   capsuleRadii,
+  DEFAULT_METRICS,
   indicatorBox,
   indicatorOffset,
   isWide,
   pillWidth,
   solveSlot,
-  visibleSlots,
+  spanWidth,
   type IndicatorStyle,
   type NavMetrics,
+  visibleSlots,
 } from './geometry';
 import {
   FADE_IN,
@@ -117,6 +118,12 @@ export type AdaptiveNavProps = {
   metrics?: Partial<NavMetrics>;
   /** Print each section's (and tool's) label under its glyph. Off, the bar is icon-only. */
   labelled?: boolean;
+  /**
+   * In tabs and context modes the pill spans the screen the way the wide modes
+   * do, the sections sharing its width. Off, it hugs its slots. Minimized, it
+   * still folds to the one slot.
+   */
+  fill?: boolean;
   className?: string;
 };
 
@@ -301,6 +308,7 @@ function Tab({
   tab,
   index,
   slot,
+  pitch,
   x,
   magnet,
   hidden,
@@ -316,6 +324,8 @@ function Tab({
   tab: TabOption;
   index: number;
   slot: number;
+  /** The width of one section's cell: the slot, or a share of a spanning pill. */
+  pitch: number;
   x: MotionValue<number>;
   magnet: boolean;
   hidden: boolean;
@@ -328,16 +338,16 @@ function Tab({
   badgeText: ReactNode;
   handlers: TabHandlers;
 }) {
-  // The bubble's centre sits slot/2 beyond x; so does this glyph's beyond
-  // index·slot, so their distance in slots is simply this.
+  // The bubble's centre sits pitch/2 beyond x; so does this glyph's beyond
+  // index·pitch, so their distance in cells is simply this.
   const pull = useTransform(x, (v) => {
     if (!magnet) return 0;
-    const d = (v - index * slot) / slot;
+    const d = (v - index * pitch) / pitch;
     return Math.abs(d) >= 1 ? 0 : MAGNET_PX * d * (1 - Math.abs(d));
   });
   const swell = useTransform(x, (v) => {
     if (!magnet) return 1;
-    const d = Math.abs(v - index * slot) / slot;
+    const d = Math.abs(v - index * pitch) / pitch;
     return d >= 1 ? 1 : 1 + MAGNET_SCALE * (1 - d) * (1 - d);
   });
   return (
@@ -352,7 +362,7 @@ function Tab({
       className="anav__btn"
       initial={false}
       animate={{
-        width: hidden ? 0 : slot,
+        width: hidden ? 0 : pitch,
         opacity: hidden ? 0 : 1,
         scale: hidden ? 0.6 : 1,
       }}
@@ -399,6 +409,7 @@ export function AdaptiveNav({
   backIcon,
   metrics,
   labelled = false,
+  fill = false,
   className,
 }: AdaptiveNavProps) {
   const m: NavMetrics = { ...DEFAULT_METRICS, ...metrics };
@@ -460,13 +471,28 @@ export function AdaptiveNav({
   /** What the pill is sized around: the tabs shown, or the toolbar's tools. */
   const shown = toolbar ? (tools?.length ?? 0) : visibleCount;
 
+  // A spanning pill takes the screen less its insets and whatever circles hang
+  // off it: Back on every pushed screen, the action when the screen gives one.
+  // The wide modes always span; tabs and context span when asked to and not
+  // minimized. It shifts by half a circle when only one end carries one, so
+  // its leading edge stays beside Back.
+  const leading = mode !== 'tabs';
+  const trailing = !!action;
+  const spanning = wide || (fill && !minimized && !toolbar);
+  const width = spanning
+    ? spanWidth(vw, sat, (leading ? 1 : 0) + (trailing ? 1 : 0), m)
+    : pillWidth(mode, shown, slot, sat, vw, m);
+  const shift = spanning ? (((leading ? 1 : 0) - (trailing ? 1 : 0)) * (sat + m.gap)) / 2 : 0;
+  /** One section's share of the pill: the slot, or the spanning width divided among the sections. */
+  const pitch = spanning && !wide ? (width - m.pad * 2) / Math.max(1, shown) : slot;
+
   /** The ring a landing bubble sends out. */
   const ripple = useCallback(() => {
     if (reduceMotion) return;
     rippleRef.current?.animate?.(RIPPLE, { duration: 520, easing: POP_EASE });
   }, [reduceMotion]);
 
-  const capsuleTarget = indicatorOffset(visible, activeIndex, slot);
+  const capsuleTarget = indicatorOffset(visible, activeIndex, pitch);
   const x = useMotionValue(capsuleTarget);
   const settled = useRef(false);
   // True between letting go of a scrub and the next settle, so that one spring
@@ -501,7 +527,8 @@ export function AdaptiveNav({
   const scaleX = useTransform([scale, stretch], ([s, st]: number[]) => s * st);
   const scaleY = useTransform([scale, stretch], ([s, st]: number[]) => s / Math.sqrt(st));
   const box = indicatorBox(indicator, slot, m.pad);
-  const capsuleX = useTransform(x, (v) => v + box.dx);
+  // Centred in its cell: in a spanning pill a cell is wider than the indicator.
+  const capsuleX = useTransform(x, (v) => v + box.dx + (pitch - slot) / 2);
   const showCapsule = !wide && !toolbar && indicator !== 'lift';
   // The magnet only makes sense while every slot is where the arithmetic says.
   const magnet = showCapsule && !minimized && !reduceMotion;
@@ -560,7 +587,7 @@ export function AdaptiveNav({
       const velocity = trailVelocity(p.trail);
       const held = p.trail[p.trail.length - 1]?.x ?? x.get();
       const rest = held + project(velocity);
-      const idx = Math.min(options.length - 1, Math.max(0, Math.round(rest / slot)));
+      const idx = Math.min(options.length - 1, Math.max(0, Math.round(rest / pitch)));
       const id = options[idx].id;
       released.current = true;
       // A scrub is a selection, not a tap: landing on the current tab changes nothing.
@@ -568,7 +595,7 @@ export function AdaptiveNav({
       // The spring leaves at the finger's speed, so there is no seam between drag and settle.
       animate(
         x,
-        idx * slot,
+        idx * pitch,
         reduceMotion ? REDUCED_SPRING : { ...RELEASE_SPRING, velocity, onComplete: ripple },
       );
     }
@@ -629,15 +656,15 @@ export function AdaptiveNav({
     if (!p) return;
     const n = options.length;
     const local = clientX - p.trackLeft - m.pad;
-    const max = (n - 1) * slot;
-    let target = local - slot / 2;
-    if (target < 0) target = rubberband(target, slot);
-    else if (target > max) target = max + rubberband(target - max, slot);
+    const max = (n - 1) * pitch;
+    let target = local - pitch / 2;
+    if (target < 0) target = rubberband(target, pitch);
+    else if (target > max) target = max + rubberband(target - max, pitch);
     animate(x, target, reduceMotion ? REDUCED_SPRING : FOLLOW_SPRING);
     const now = performance.now();
     p.trail.push({ x: target, t: now });
     while (p.trail.length > 1 && now - p.trail[0].t > TRAIL_MS) p.trail.shift();
-    const idx = Math.min(n - 1, Math.max(0, Math.floor(local / slot)));
+    const idx = Math.min(n - 1, Math.max(0, Math.floor(local / pitch)));
     const id = options[idx].id;
     if (p.over !== id) {
       p.over = id;
@@ -722,11 +749,6 @@ export function AdaptiveNav({
 
   const shape: Transition = reduceMotion ? { duration: 0 } : SHAPE_SPRING;
   const glyph = reduceMotion ? { duration: 0 } : GLYPH;
-  // A wide pill reserves both satellite slots. When no circle hangs off the
-  // trailing end, the field takes that width instead of leaving it empty, and
-  // the pill shifts by half so its leading edge stays beside Back.
-  const freed = wide && !action ? sat + m.gap : 0;
-  const width = pillWidth(mode, shown, slot, sat, vw, m) + freed;
   // The frost thins toward the lip only inside the lens filter, where the bend
   // explains it; a crisp ring without a bend reads as a cut-out.
   const masks = useFrostMasks({ width, height: sat, circle: sat, refraction: pillLens ? g.refraction : 0 });
@@ -744,6 +766,7 @@ export function AdaptiveNav({
       ref={rootRef}
       className={className ? `anav ${className}` : 'anav'}
       data-mode={mode}
+      data-fill={spanning || undefined}
       data-tone={tone}
       data-labelled={labelled || undefined}
       data-minimized={minimized || undefined}
@@ -792,7 +815,7 @@ export function AdaptiveNav({
         initial={false}
         // Hidden slides the whole cluster below the screen edge, shadow
         // included, shrinking a little as it goes so it reads as leaving.
-        animate={{ width, x: freed / 2, y: hidden ? sat + 96 : 0, scale: hidden ? 0.9 : 1 }}
+        animate={{ width, x: shift, y: hidden ? sat + 96 : 0, scale: hidden ? 0.9 : 1 }}
         transition={shape}
         style={{ transformOrigin: '50% 100%' }}
       >
@@ -842,6 +865,7 @@ export function AdaptiveNav({
                 tab={tab}
                 index={i}
                 slot={slot}
+                pitch={pitch}
                 x={x}
                 magnet={magnet}
                 hidden={!visible[i]}

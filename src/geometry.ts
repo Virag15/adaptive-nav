@@ -91,6 +91,18 @@ export function visibleSlots(
 }
 
 /** Where the indicator sits: one slot per visible tab before the active one. */
+/**
+ * The width of a pill that spans the screen: the viewport (capped, so a tablet
+ * does not get a metre-wide bar) less the side insets and the satellite circles
+ * hanging off its ends, each with its gap.
+ *
+ * Input: (393, 56, 1, DEFAULT_METRICS)  Output: 309
+ * Input: (393, 56, 0, DEFAULT_METRICS)  Output: 373
+ */
+export function spanWidth(viewportWidth: number, satellite: number, satellites: number, m: NavMetrics): number {
+  return Math.min(viewportWidth, m.buyMaxWidth) - m.buyInset * 2 - (satellite + m.gap) * satellites;
+}
+
 export function indicatorOffset(visible: boolean[], activeIndex: number, slot: number): number {
   let before = 0;
   for (let i = 0; i < activeIndex; i++) if (visible[i]) before++;
