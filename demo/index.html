@@ -3,50 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<link rel="icon" href="data:," />
-<title>adaptive-nav playground</title>
-<!-- No reset and no design-system CSS on purpose: the bar must look right on
-     its own stylesheet alone. The :root rules below are the documented way to
-     theme it: tokens on :root beat the package defaults. The glass knobs are
-     set from the sliders through setGlobalGlass(). -->
-<style>
-  body { margin: 0; font: 400 100%/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #efeff2; color: #0b0b0c; }
-  /* Dark is a page setting only: the bar reads the page and flips on its own. */
-  :root.dark body { background: #111; color: #eee; }
-
-  .panel { position: sticky; top: 0; z-index: 30; padding: 12px 20px 14px; background: rgb(239 239 242 / 0.92); backdrop-filter: blur(12px); border-bottom: 1px solid rgb(0 0 0 / 0.08); }
-  :root.dark .panel { background: rgb(17 17 17 / 0.9); border-color: rgb(255 255 255 / 0.1); }
-  /* At regular width the bar sits at the top; the panel drops below it. After
-     the shorthand above, or the shorthand would win. */
-  @media (min-width: 768px) { .panel { padding-top: 76px; } }
-  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0; }
-  .row > b { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.55; width: 72px; flex: none; }
-  .panel button { font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid rgb(0 0 0 / 0.15); background: #fff; color: #0b0b0c; cursor: pointer; }
-  .panel button[aria-pressed="true"] { background: #0b0b0c; color: #fff; border-color: #0b0b0c; }
-  :root.dark .panel button { background: #222; color: #eee; border-color: rgb(255 255 255 / 0.18); }
-  :root.dark .panel button[aria-pressed="true"] { background: #fff; color: #111; border-color: #fff; }
-  .knobs { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 18px; margin-top: 8px; }
-  .knob { display: grid; grid-template-columns: 78px 1fr 44px; align-items: center; gap: 8px; font-size: 12.5px; }
-  .knob output { font-variant-numeric: tabular-nums; text-align: right; opacity: 0.7; }
-  .knob input { width: 100%; margin: 0; accent-color: #5433eb; }
-  .knob.hue input { accent-color: transparent; background: linear-gradient(90deg, hsl(0 80% 55%), hsl(60 80% 55%), hsl(120 80% 55%), hsl(180 80% 55%), hsl(240 80% 55%), hsl(300 80% 55%), hsl(360 80% 55%)); border-radius: 999px; height: 6px; appearance: none; }
-  .knob.hue input::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 1px solid rgb(0 0 0 / 0.25); box-shadow: 0 1px 3px rgb(0 0 0 / 0.2); }
-  #log { margin: 8px 20px 0; min-height: 3.2em; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: 0.7; white-space: pre-wrap; }
-  .note { margin: 6px 0 0; font-size: 12px; opacity: 0.6; }
-
-  /* A busy page under the bar, so the material has something to blur, tint and bend. */
-  .stage { padding: 24px 20px 160px; display: grid; gap: 20px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-  .tile { aspect-ratio: 1; border-radius: 18px; }
-  .stripes { height: 120px; border-radius: 18px; background: repeating-linear-gradient(90deg, #0b0b0c 0 6px, transparent 6px 22px), linear-gradient(90deg, #ffd166, #ef476f); }
-  :root.dark .stripes { background: repeating-linear-gradient(90deg, #fff 0 6px, transparent 6px 22px), linear-gradient(90deg, #3a2a6d, #0f4c5c); }
-  .grid { height: 120px; border-radius: 18px; background-image: linear-gradient(rgb(0 0 0 / 0.5) 1px, transparent 1px), linear-gradient(90deg, rgb(0 0 0 / 0.5) 1px, transparent 1px); background-size: 16px 16px; background-color: #d8e2ff; }
-  :root.dark .grid { background-image: linear-gradient(rgb(255 255 255 / 0.4) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.4) 1px, transparent 1px); background-color: #1b2540; }
-  .headline { font-size: clamp(40px, 9vw, 96px); line-height: 0.95; letter-spacing: -0.04em; font-weight: 800; margin: 0; }
-  /* A stretch of near-black page, so the bar has something dark to float over. */
-  .band { padding: 48px 20px 64px; display: grid; gap: 20px; background: #0d0d10; color: #f2f2f4; }
-  .copy { max-width: 60ch; font-size: 15px; opacity: 0.85; }
-</style>
+<meta name="color-scheme" content="light dark" />
+<meta name="description" content="A floating glass tab bar for mobile web apps: it bends what is beneath it, flips its ink over dark content, and becomes whatever the screen needs." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='8' width='20' height='8' rx='4' fill='none' stroke='%235433eb' stroke-width='1.8'/%3E%3Ccircle cx='7' cy='12' r='2.2' fill='%235433eb'/%3E%3C/svg%3E" />
+<title>adaptive-nav — SKK playground</title>
+<!-- The page has its own stylesheet and never styles .anav: anything that looks
+     wrong on the bar is the package's fault, not the page's. -->
+<link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
 <div id="root"></div>
