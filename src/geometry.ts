@@ -104,3 +104,31 @@ export function pillWidth(
   }
   return visibleCount * slot + m.pad * 2;
 }
+
+/** How the selected tab is marked; see the stylesheet for what each looks like. */
+export type IndicatorStyle = 'capsule' | 'dot' | 'glow' | 'lift';
+
+/**
+ * The indicator's box inside a slot, for the style. `dx` and `top` place it;
+ * the travelling spring adds `dx` to the slot offset so every style rides the
+ * same x. `lift` has no visible box and reuses the capsule's so the element
+ * still exists to fade in when the style changes.
+ *
+ * Input: ('capsule', 56, 6)  Output: { w: 56, h: 56, top: 6, dx: 0 }
+ * Input: ('dot', 56, 6)      Output: { w: 5, h: 5, top: 53, dx: 25.5 }
+ */
+export function indicatorBox(
+  style: IndicatorStyle,
+  slot: number,
+  pad: number,
+): { w: number; h: number; top: number; dx: number } {
+  if (style === 'dot') {
+    const d = 5;
+    return { w: d, h: d, top: pad + slot - d - 4, dx: (slot - d) / 2 };
+  }
+  if (style === 'glow') {
+    const d = Math.round(slot * 0.78);
+    return { w: d, h: d, top: pad + (slot - d) / 2, dx: (slot - d) / 2 };
+  }
+  return { w: slot, h: slot, top: pad, dx: 0 };
+}

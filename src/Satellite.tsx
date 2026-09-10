@@ -11,12 +11,15 @@ export function Satellite({
   side,
   tuck,
   reduce,
+  lens,
   children,
 }: {
   side: 'leading' | 'trailing';
   /** How far under the pill the circle starts: its own width plus the gap. */
   tuck: number;
   reduce: boolean;
+  /** Render the refraction layer under the circle. */
+  lens: boolean;
   children: ReactNode;
 }) {
   const tucked = reduce
@@ -37,6 +40,10 @@ export function Satellite({
         transition: { transform: reduce ? { duration: 0 } : RETREAT_SPRING, opacity: FADE_OUT },
       }}
     >
+      {/* A sibling of the circle, not a child: a backdrop filter only sees what
+          lies outside its own element's filtered group, so the lens has to sit
+          beside the frosted button rather than inside it. */}
+      {lens && <span className="anav__refract anav__refract--circle" aria-hidden />}
       {children}
     </motion.div>
   );

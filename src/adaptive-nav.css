@@ -5,19 +5,42 @@
    they are declared at zero specificity, so a host `:root { --anav-glass: … }`
    wins whatever the import order, and a `.anav { … }` rule scopes an override
    to one bar. The geometry tokens (--anav-slot, --anav-sat, --anav-pad,
-   --anav-gap, --anav-r-outer, --anav-r-inner) are written by the component.
+   --anav-gap, --anav-r-outer, --anav-r-inner) and the lens tokens
+   (--anav-refract-pill, --anav-refract-circle) are written by the component.
+
+   The material has two layers of tokens. The knobs (--anav-glass-base,
+   --anav-glass-opacity, --anav-blur, --anav-saturate, --anav-tint,
+   --anav-tint-amount, --anav-rim) are what the `glass` prop, the presets and
+   setGlobalGlass() write. They feed the composites the rules below read
+   (--anav-glass, --anav-glass-blur); a host that sets a composite directly on
+   :root takes full control of it, as before.
    ============================================================ */
 
 :where(:root) {
-  /* The translucent surface and the blur that sells it. */
-  --anav-glass: rgb(255 255 255 / 0.88);
-  --anav-glass-blur: blur(20px) saturate(160%);
+  /* The material: what it is made of, and how much of the page it lets through. */
+  --anav-glass-base: #fff;
+  --anav-glass-opacity: 0.88;
+  --anav-glass: color-mix(in srgb, var(--anav-glass-base) calc(var(--anav-glass-opacity) * 100%), transparent);
+  /* The blur that sells it, and the saturation that keeps colour alive under the frost. */
+  --anav-blur: 20px;
+  --anav-saturate: 160%;
+  --anav-glass-blur: blur(var(--anav-blur)) saturate(var(--anav-saturate));
+  /* Tinted glass: the colour soaked into the material, and how deeply. */
+  --anav-tint: #5433eb;
+  --anav-tint-amount: 0;
+  /* The lit lip and inner sheen that make a flat surface read as a slab. 0 turns them off. */
+  --anav-rim: 0.35;
   /* What the surface becomes when the user asks for reduced transparency. */
   --anav-solid: #fff;
   --anav-fg: #0b0b0c;
   --anav-fg-muted: #8a8a8f;
-  /* The travelling selection indicator, and its colour on a solid surface. */
-  --anav-indicator: #fff;
+  /* The travelling selection indicator: a lighter piece of the same material,
+     so it thins along with the glass rather than sitting on it like a sticker. */
+  --anav-indicator: color-mix(
+    in srgb,
+    var(--anav-glass-base) calc(55% + var(--anav-glass-opacity) * 45%),
+    transparent
+  );
   --anav-indicator-solid: rgb(120 120 128 / 0.14);
   /* Buy mode's call to action. */
   --anav-accent: #5433eb;
@@ -94,13 +117,30 @@
   pointer-events: auto;
 }
 
+/* The filters must be in the render tree for url(#id) to resolve, but take no room. */
+.anav__filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* ---------- The material ---------- */
+
 /* The glass is its own layer, stacked above the satellites, so a circle can
    start underneath it and slide out — it comes out of the bar, not beside it. */
 .anav__surface,
 .anav__circle {
   /* Resolved by the component from one capsule rule; see geometry.ts. */
   border-radius: var(--anav-r-outer, 34px);
-  background: var(--anav-glass);
+  /* The tint is mixed in at the glass's own opacity, so soaking colour into
+     the material never makes it more opaque. */
+  background: color-mix(
+    in oklab,
+    var(--anav-glass),
+    color-mix(in srgb, var(--anav-tint) calc(var(--anav-glass-opacity) * 100%), transparent)
+      calc(var(--anav-tint-amount) * 100%)
+  );
   /* Prefixed first: lightningcss (Vite's minifier) keeps only the last of the
      pair when it has no browser targets, and the unprefixed one is the one
      every current browser needs. */
@@ -112,6 +152,64 @@
   position: absolute;
   inset: 0;
   z-index: 1;
+}
+
+/* The lit lip: a 1px gradient ring, brightest where the light comes from and
+   caught again, fainter, on the far lip. Drawn with a mask so it follows the
+   radius exactly and never doubles up at the corners the way a border would. */
+.anav__surface::before,
+.anav__circle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    155deg,
+    rgb(255 255 255 / calc(0.95 * var(--anav-rim))) 0%,
+    rgb(255 255 255 / calc(0.35 * var(--anav-rim))) 30%,
+    rgb(255 255 255 / calc(0.08 * var(--anav-rim))) 55%,
+    rgb(255 255 255 / calc(0.55 * var(--anav-rim))) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* The inner sheen: light across the top, a shade along the bottom lip. This
+   is what tells the eye the slab has thickness even where nothing refracts. */
+.anav__surface::after,
+.anav__circle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgb(255 255 255 / calc(0.22 * var(--anav-rim))), rgb(255 255 255 / 0) 45%);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / calc(0.4 * var(--anav-rim))),
+    inset 0 -1px 2px rgb(0 0 0 / calc(0.08 * var(--anav-rim)));
+  pointer-events: none;
+}
+
+/* The lens: a second backdrop layer that bends what is under the rim. It is a
+   sibling of the frosted layer, never a child — a backdrop filter only sees
+   what is painted outside its own element's group. The filter is an SVG
+   displacement map (see GlassFilters.tsx); a browser that cannot apply SVG
+   filters to a backdrop renders this layer as nothing, and the rim above
+   carries the glass on its own. */
+.anav__refract {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: var(--anav-r-outer, 34px);
+  -webkit-backdrop-filter: var(--anav-refract-pill, none);
+  backdrop-filter: var(--anav-refract-pill, none);
+  pointer-events: none;
+}
+.anav__refract--circle {
+  -webkit-backdrop-filter: var(--anav-refract-circle, none);
+  backdrop-filter: var(--anav-refract-circle, none);
 }
 
 /* ---------- Satellites ---------- */
@@ -141,6 +239,13 @@
 }
 .anav__circle:active { transform: scale(0.92); }
 .anav__circle svg { width: 25px; height: 25px; }
+/* Above the sheen, which is a positioned pseudo-element. */
+.anav__circle > svg,
+.anav__circle > .anav__badge {
+  position: relative;
+  z-index: 1;
+}
+.anav__circle > .anav__badge { position: absolute; }
 .anav__circle[data-on] { color: var(--anav-on); }
 
 /* ---------- Tabs ---------- */
@@ -155,12 +260,19 @@
 /* The indicator is the selected state — it travels, the icons do not. */
 .anav__capsule {
   position: absolute;
-  top: var(--anav-pad, 6px);
   left: var(--anav-pad, 6px);
   border-radius: var(--anav-r-inner, 28px);
   background: var(--anav-indicator);
   box-shadow: var(--anav-indicator-shadow);
   will-change: transform;
+}
+/* The indicator is glass too: it catches the same light along its top lip. */
+.anav__capsule::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / calc(0.6 * var(--anav-rim)));
 }
 
 .anav__btn {
@@ -173,15 +285,56 @@
   border-radius: var(--anav-r-inner, 28px);
   color: var(--anav-fg-muted);
   transition: color 200ms ease;
+  /* Sideways is ours (the scrub); up and down still belongs to the page. */
+  touch-action: pan-y;
 }
 .anav__btn[data-active] { color: var(--anav-fg); }
 .anav__btn svg { width: 25px; height: 25px; }
+.anav[data-scrub] .anav__btn { cursor: grabbing; }
 
+/* The landing bounce is driven from the component (Web Animations), so the
+   first paint never pops and a re-render never replays it. */
 .anav__glyph {
   display: grid;
   place-items: center;
   width: 25px;
   height: 25px;
+  transition: transform 260ms var(--anav-ease), filter 260ms var(--anav-ease);
+}
+
+/* ---------- Indicator styles ---------- */
+
+/* dot: a point beneath the glyph, which takes the accent itself. */
+.anav[data-indicator='dot'] .anav__capsule {
+  border-radius: 999px;
+  background: var(--anav-accent);
+  box-shadow: none;
+}
+.anav[data-indicator='dot'] .anav__capsule::after { display: none; }
+
+/* glow: a pool of accent light behind the glyph. */
+.anav[data-indicator='glow'] .anav__capsule {
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--anav-accent) 34%, transparent),
+    color-mix(in srgb, var(--anav-accent) 10%, transparent) 55%,
+    transparent 72%
+  );
+  box-shadow: none;
+}
+.anav[data-indicator='glow'] .anav__capsule::after { display: none; }
+
+.anav[data-indicator='dot'] .anav__btn[data-active],
+.anav[data-indicator='glow'] .anav__btn[data-active],
+.anav[data-indicator='lift'] .anav__btn[data-active] {
+  color: var(--anav-accent);
+}
+
+/* lift: no mark at all; the selected glyph rises off the glass. */
+.anav[data-indicator='lift'] .anav__btn[data-active] .anav__glyph {
+  transform: translateY(-1.5px) scale(1.12);
+  filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--anav-accent) 45%, transparent));
 }
 
 /* ---------- Buy mode: the accent segment that fills the pill ---------- */
@@ -262,11 +415,12 @@
   .anav *::before,
   .anav *::after {
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }
 
 /* Solid surfaces: bypasses the glass token entirely, so a themed host still
-   gets an opaque bar when the user asks for one. */
+   gets an opaque bar when the user asks for one. The lens goes with it. */
 @media (prefers-reduced-transparency: reduce) {
   .anav__surface,
   .anav__circle {
@@ -274,6 +428,7 @@
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+  .anav__refract { display: none; }
   .anav__capsule {
     background: var(--anav-indicator-solid);
     box-shadow: none;
@@ -285,5 +440,12 @@
   .anav__circle {
     background: var(--anav-solid);
     box-shadow: 0 0 0 1px rgb(0 0 0 / 0.3), 0 8px 30px rgb(0 0 0 / 0.18);
+  }
+  .anav__surface::before,
+  .anav__surface::after,
+  .anav__circle::before,
+  .anav__circle::after,
+  .anav__refract {
+    display: none;
   }
 }

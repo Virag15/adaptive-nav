@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_METRICS,
   capsuleRadii,
+  indicatorBox,
   indicatorOffset,
   pillWidth,
   solveSlot,
@@ -54,4 +55,18 @@ test('minimized keeps only the active slot and the indicator packs left', () => 
   assert.deepEqual(visibleSlots(4, 'buy', false, 2), [false, false, false, false]);
   assert.equal(indicatorOffset([true, true, true, true], 2, 52), 104);
   assert.equal(indicatorOffset([false, false, true, false], 2, 52), 0);
+});
+
+test('every indicator style sits centred in the slot and shares its x with the capsule', () => {
+  const capsule = indicatorBox('capsule', 56, 6);
+  assert.deepEqual(capsule, { w: 56, h: 56, top: 6, dx: 0 });
+  assert.deepEqual(indicatorBox('lift', 56, 6), capsule);
+  const dot = indicatorBox('dot', 56, 6);
+  // Horizontally centred: dx + w/2 is the slot's midpoint.
+  assert.equal(dot.dx + dot.w / 2, 28);
+  // Sits above the slot's bottom edge, inside the pad.
+  assert.ok(dot.top + dot.h <= 6 + 56);
+  const glow = indicatorBox('glow', 56, 6);
+  assert.equal(glow.dx + glow.w / 2, 28);
+  assert.equal(glow.top + glow.h / 2, 6 + 28);
 });
