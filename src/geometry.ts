@@ -61,14 +61,16 @@ export function capsuleRadii(satellite: number, pad: number): { outer: number; i
 
 /**
  * The modes where the pill spans the screen and the tabs fold away: the call
- * to action and the search field. `hidden` keeps the tab layout, so the bar
- * comes back the shape it left.
+ * to action, the search field, the selection count, the decision. `toolbar`
+ * folds the tabs too but stays as wide as its tools; `hidden` keeps the tab
+ * layout, so the bar comes back the shape it left.
  *
- * Input: 'buy'     Output: true
- * Input: 'hidden'  Output: false
+ * Input: 'buy'      Output: true
+ * Input: 'toolbar'  Output: false
+ * Input: 'hidden'   Output: false
  */
 export function isWide(mode: NavMode): boolean {
-  return mode === 'buy' || mode === 'search';
+  return mode === 'buy' || mode === 'search' || mode === 'select' || mode === 'confirm';
 }
 
 /**
@@ -82,7 +84,7 @@ export function visibleSlots(
   activeIndex: number,
 ): boolean[] {
   return Array.from({ length: count }, (_, i) => {
-    if (isWide(mode)) return false;
+    if (isWide(mode) || mode === 'toolbar') return false;
     if (minimized) return i === activeIndex;
     return true;
   });
@@ -96,9 +98,9 @@ export function indicatorOffset(visible: boolean[], activeIndex: number, slot: n
 }
 
 /**
- * Buy and search: full width less the insets and the two circles, so the call
- * to action or the field never collides with Back or the action. Otherwise:
- * the visible slots plus the pill's padding.
+ * The wide modes: full width less the insets and the two circles, so what
+ * fills the pill never collides with Back or the action. Otherwise: the slots
+ * shown (tabs, or a toolbar's tools) plus the pill's padding.
  *
  * Input: ('tabs', 4, 52, 64, 393, DEFAULT_METRICS)    Output: 220
  * Input: ('buy', 0, 52, 64, 393, DEFAULT_METRICS)     Output: 229

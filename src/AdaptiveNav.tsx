@@ -19,6 +19,7 @@ import {
   useSpring,
   useTransform,
   useVelocity,
+  type Transition,
 } from 'motion/react';
 import { Satellite } from './Satellite';
 import { GlassFilters, useFrostMasks } from './GlassFilters';
@@ -51,7 +52,18 @@ import {
 } from './springs';
 import { glassVars, type GlassInput } from './glass';
 import { useGlass } from './useGlass';
-import type { BuyAction, NavAction, NavLabels, NavMode, SearchField, TabOption } from './types';
+import { useBackdropTone } from './useBackdropTone';
+import type { ToneSetting } from './tone';
+import type {
+  BuyAction,
+  ConfirmActions,
+  NavAction,
+  NavLabels,
+  NavMode,
+  SearchField,
+  SelectSession,
+  TabOption,
+} from './types';
 
 export type AdaptiveNavProps = {
   mode: NavMode;
@@ -59,7 +71,7 @@ export type AdaptiveNavProps = {
   /** The id of the selected tab. */
   value: string;
   onChange: (id: string) => void;
-  /** Back circle press; rendered in `context`, `buy` and `search` modes. */
+  /** The left circle: Back on a pushed screen, Close in `select` and `confirm`. */
   onBack?: () => void;
   /** The right-hand circle, chosen by the screen. Omit for Back alone. */
   action?: NavAction;
@@ -67,6 +79,12 @@ export type AdaptiveNavProps = {
   buy?: BuyAction;
   /** The field the pill becomes in `search` mode. */
   search?: SearchField;
+  /** The actions that fill the pill in `toolbar` mode. */
+  tools?: NavAction[];
+  /** The count and Done that fill the pill in `select` mode. */
+  select?: SelectSession;
+  /** The decision that fills the pill in `confirm` mode. */
+  confirm?: ConfirmActions;
   /** Collapsed to the active section only, the way a tab bar folds away on scroll. */
   minimized?: boolean;
   /** Any tap or arrow key on the minimized bar asks to unfold rather than switching. */
@@ -78,17 +96,27 @@ export type AdaptiveNavProps = {
   glass?: GlassInput;
   /** How the selected tab is marked. */
   indicator?: IndicatorStyle;
+  /**
+   * Which way the bar faces. `auto` reads what is under it and flips to dark
+   * glass with white ink over dark content; a tone pins it.
+   */
+  tone?: ToneSetting;
   /** Override the strings assistive tech reads; defaults are English. */
   labels?: Partial<NavLabels>;
-  /** Replaces the built-in chevron inside the Back circle. */
+  /** Replaces the built-in chevron (or cross) inside the left circle. */
   backIcon?: ReactNode;
   /** Override slot size, paddings and the buy pill's cap; see `DEFAULT_METRICS`. */
   metrics?: Partial<NavMetrics>;
+  /** Print each section's (and tool's) label under its glyph. Off, the bar is icon-only. */
+  labelled?: boolean;
   className?: string;
 };
 
 const DEFAULT_LABELS: NavLabels = {
   back: 'Back',
+  close: 'Close',
+  tools: 'Actions',
+  selectDone: 'Done',
   sections: 'Sections',
   done: 'Added',
   search: 'Search',
@@ -183,6 +211,42 @@ function useKeyboardInset(enabled: boolean) {
   return inset;
 }
 
+/**
+ * One of the things that fill the pill in a wide mode. Zero-width and inert
+ * outside its own mode; grows from nothing as the pill widens into it.
+ */
+function Segment({
+  name,
+  active,
+  height,
+  shape,
+  className,
+  children,
+}: {
+  name: NavMode;
+  active: boolean;
+  height: number;
+  shape: Transition;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <motion.div
+      className={`anav__segment anav__segment--${name}${className ? ` ${className}` : ''}`}
+      aria-hidden={!active || undefined}
+      inert={!active || undefined}
+      initial={false}
+      animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.92 }}
+      // The shape spring's tail is right for width, wrong for opacity — it
+      // would leave the label translucent long after it arrived.
+      transition={{ scale: shape, opacity: active ? FADE_IN : FADE_OUT }}
+      style={{ height, pointerEvents: active ? 'auto' : 'none' }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export function AdaptiveNav({
   mode,
   options,
@@ -192,13 +256,18 @@ export function AdaptiveNav({
   action,
   buy,
   search,
+  tools,
+  select,
+  confirm,
   minimized = false,
   onExpand,
   glass,
   indicator = 'capsule',
+  tone: toneSetting = 'auto',
   labels,
   backIcon,
   metrics,
+  labelled = false,
   className,
 }: AdaptiveNavProps) {
   const m: NavMetrics = { ...DEFAULT_METRICS, ...metrics };
@@ -216,8 +285,12 @@ export function AdaptiveNav({
   const wide = isWide(mode);
   const hidden = mode === 'hidden';
   const searching = mode === 'search';
-  /** Back is out whenever the bar is not at the home level. */
-  const pushed = mode === 'context' || wide;
+  const toolbar = mode === 'toolbar';
+  /** The left circle is out whenever the bar is not at the home level… */
+  const pushed = mode !== 'tabs' && !hidden;
+  /** …and reads as Close, not Back, where the screen is a session or a sheet. */
+  const closing = mode === 'select' || mode === 'confirm';
+  const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -226,10 +299,11 @@ export function AdaptiveNav({
   // url(#…) cannot carry the punctuation React puts around its ids.
   const filterId = 'anav-' + useId().replace(/[^\w-]/g, '');
 
-  // The pill spans the screen in buy mode and the slot tightens on narrow
-  // phones; both need the viewport width.
+  // The pill spans the screen in the wide modes and the slot tightens on
+  // narrow phones; both need the viewport width. A toolbar with more tools
+  // than there are tabs has to fit too.
   const vw = useViewportWidth();
-  const slot = solveSlot(vw, options.length, m);
+  const slot = solveSlot(vw, Math.max(options.length, tools?.length ?? 0), m);
   /** Satellites match the pill's outer height, so their arcs share its radius. */
   const sat = slot + m.pad * 2;
   // The glass needs a box-shadow and a backdrop blur, which a clip-path cannot
@@ -244,6 +318,8 @@ export function AdaptiveNav({
 
   const visible = visibleSlots(options.length, mode, minimized, activeIndex);
   const visibleCount = visible.filter(Boolean).length;
+  /** What the pill is sized around: the tabs shown, or the toolbar's tools. */
+  const shown = toolbar ? (tools?.length ?? 0) : visibleCount;
 
   const capsuleTarget = indicatorOffset(visible, activeIndex, slot);
   const x = useMotionValue(capsuleTarget);
@@ -281,7 +357,7 @@ export function AdaptiveNav({
   const scaleY = useTransform([scale, stretch], ([s, st]: number[]) => s / Math.sqrt(st));
   const box = indicatorBox(indicator, slot, m.pad);
   const capsuleX = useTransform(x, (v) => v + box.dx);
-  const showCapsule = !wide && indicator !== 'lift';
+  const showCapsule = !wide && !toolbar && indicator !== 'lift';
 
   // The glyph that has just become the selection lands with a small bounce.
   // Imperative, so the first paint does not pop and a re-render never replays it.
@@ -370,7 +446,7 @@ export function AdaptiveNav({
     };
   }, [pressed]);
 
-  const canScrub = !minimized && !wide && !hidden && options.length > 1;
+  const canScrub = !minimized && !wide && !toolbar && !hidden && options.length > 1;
 
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>, id: string) => {
     if (!e.isPrimary) return;
@@ -484,12 +560,18 @@ export function AdaptiveNav({
     else if (e.key === 'Escape') onBack?.();
   };
 
-  const shape = reduceMotion ? { duration: 0 } : SHAPE_SPRING;
+  const shape: Transition = reduceMotion ? { duration: 0 } : SHAPE_SPRING;
   const glyph = reduceMotion ? { duration: 0 } : GLYPH;
-  const width = pillWidth(mode, visibleCount, slot, sat, vw, m);
+  const width = pillWidth(mode, shown, slot, sat, vw, m);
   const masks = useFrostMasks({ width, height: sat, circle: sat, refraction: g.refraction });
   /** Only the travelling capsule is a bubble; a dot or a glow has no lip to bend at. */
   const capsuleLens = lens && indicator === 'capsule' ? box.w : 0;
+
+  // Which way the bar faces. Over dark content the material itself flips to
+  // its dark base; a bar with its own `glass` writes the tokens inline, so the
+  // flip has to happen here rather than in the stylesheet's tone rule.
+  const tone = useBackdropTone(rootRef, toneSetting, `${mode}:${width}:${vw}`);
+  const material = tone === 'dark' ? { ...g, base: g.baseDark } : g;
 
   const badgeCount = (count?: number) =>
     count ? (
@@ -501,8 +583,11 @@ export function AdaptiveNav({
 
   return (
     <div
+      ref={rootRef}
       className={className ? `anav ${className}` : 'anav'}
       data-mode={mode}
+      data-tone={tone}
+      data-labelled={labelled || undefined}
       data-minimized={minimized || undefined}
       data-hidden={hidden || undefined}
       data-indicator={indicator}
@@ -513,7 +598,7 @@ export function AdaptiveNav({
       style={{
         // A bar with its own material writes every token here, where the
         // composites are read, so the override stays scoped to this bar.
-        ...(glass !== undefined ? glassVars(g) : null),
+        ...(glass !== undefined ? glassVars(material) : null),
         ['--anav-slot' as string]: `${slot}px`,
         ['--anav-sat' as string]: `${sat}px`,
         ['--anav-pad' as string]: `${m.pad}px`,
@@ -555,8 +640,13 @@ export function AdaptiveNav({
         <AnimatePresence initial={false}>
           {pushed && (
             <Satellite key="back" side="leading" tuck={sat + m.gap} reduce={reduceMotion} lens={lens}>
-              <button type="button" className="anav__circle" aria-label={L.back} onClick={onBack}>
-                {backIcon ?? <IconBack />}
+              <button
+                type="button"
+                className="anav__circle"
+                aria-label={closing ? L.close : L.back}
+                onClick={onBack}
+              >
+                {backIcon ?? (closing ? <IconClear /> : <IconBack />)}
               </button>
             </Satellite>
           )}
@@ -565,8 +655,8 @@ export function AdaptiveNav({
         <nav
           ref={trackRef}
           className="anav__track"
-          aria-label={L.sections}
-          role={wide ? undefined : 'tablist'}
+          aria-label={toolbar ? L.tools : L.sections}
+          role={toolbar ? 'toolbar' : wide ? undefined : 'tablist'}
         >
           <motion.span
             className="anav__capsule"
@@ -612,52 +702,62 @@ export function AdaptiveNav({
                 <span className="anav__glyph">
                   <tab.Icon />
                 </span>
+                {labelled && <span className="anav__label">{tab.label}</span>}
                 {badgeCount(tab.badge)}
                 {badgeText(tab.badge)}
               </motion.button>
             );
           })}
 
-          {/* Buy mode only: grows from nothing as the pill widens. */}
-          <motion.button
-            type="button"
-            className="anav__cta"
-            aria-hidden={mode !== 'buy' || undefined}
-            tabIndex={mode === 'buy' ? 0 : -1}
-            initial={false}
-            animate={{ opacity: mode === 'buy' ? 1 : 0, scale: mode === 'buy' ? 1 : 0.92 }}
-            // The shape spring's tail is right for width, wrong for opacity —
-            // it would leave the label translucent long after it arrived.
-            transition={{ scale: shape, opacity: mode === 'buy' ? FADE_IN : FADE_OUT }}
-            style={{ height: slot, pointerEvents: mode === 'buy' ? 'auto' : 'none' }}
-            onClick={() => {
-              if (mode !== 'buy' || !buy) return;
-              buy.onPress();
-              setConfirmed(true);
-            }}
-          >
-            <span className="anav__ctaInner">
+          {/* Toolbar only: the screen's actions take the slots the tabs left. */}
+          {tools?.map((tool) => (
+            <motion.button
+              key={tool.id}
+              type="button"
+              className="anav__btn anav__tool"
+              aria-label={tool.label}
+              aria-pressed={tool.active}
+              aria-hidden={!toolbar || undefined}
+              tabIndex={toolbar ? 0 : -1}
+              data-on={tool.active || undefined}
+              initial={false}
+              animate={{ width: toolbar ? slot : 0, opacity: toolbar ? 1 : 0, scale: toolbar ? 1 : 0.6 }}
+              transition={shape}
+              style={{ height: slot, pointerEvents: toolbar ? 'auto' : 'none' }}
+              onClick={tool.onPress}
+            >
+              <span className="anav__glyph">
+                <tool.Icon />
+              </span>
+              {labelled && <span className="anav__label">{tool.label}</span>}
+              {badgeCount(tool.badge)}
+              {badgeText(tool.badge)}
+            </motion.button>
+          ))}
+
+          <Segment name="buy" active={mode === 'buy'} height={slot} shape={shape}>
+            <button
+              type="button"
+              className="anav__cta"
+              onClick={() => {
+                if (mode !== 'buy' || !buy) return;
+                buy.onPress();
+                setConfirmed(true);
+              }}
+            >
               <span className="anav__ctaLabel" data-confirmed={showConfirmed || undefined}>
                 <span>{buy?.label ?? ''}</span>
                 {/* Visual only; the live region below is what gets announced. */}
                 <span aria-hidden>{buy?.done ?? L.done}</span>
               </span>
               <span className="anav__ctaPrice">{buy?.price ?? ''}</span>
-            </span>
-            <span className="anav__sr" aria-live="polite">
-              {showConfirmed ? (buy?.done ?? L.done) : ''}
-            </span>
-          </motion.button>
+              <span className="anav__sr" aria-live="polite">
+                {showConfirmed ? (buy?.done ?? L.done) : ''}
+              </span>
+            </button>
+          </Segment>
 
-          {/* Search mode only: the same growth, with a field inside. */}
-          <motion.div
-            className="anav__field"
-            aria-hidden={!searching || undefined}
-            initial={false}
-            animate={{ opacity: searching ? 1 : 0, scale: searching ? 1 : 0.92 }}
-            transition={{ scale: shape, opacity: searching ? FADE_IN : FADE_OUT }}
-            style={{ height: slot, pointerEvents: searching ? 'auto' : 'none' }}
-          >
+          <Segment name="search" active={searching} height={slot} shape={shape} className="anav__field">
             <span className="anav__fieldIcon" aria-hidden>
               <IconSearch />
             </span>
@@ -670,7 +770,6 @@ export function AdaptiveNav({
               autoCorrect="off"
               autoCapitalize="none"
               spellCheck={false}
-              tabIndex={searching ? 0 : -1}
               aria-label={search?.label ?? L.search}
               placeholder={search?.placeholder ?? L.search}
               value={search?.value ?? ''}
@@ -690,7 +789,31 @@ export function AdaptiveNav({
                 <IconClear />
               </button>
             ) : null}
-          </motion.div>
+          </Segment>
+
+          <Segment name="select" active={mode === 'select'} height={slot} shape={shape}>
+            <div className="anav__select">
+              <span className="anav__selectLabel" aria-live="polite">
+                {select?.label ?? ''}
+              </span>
+              <button type="button" className="anav__selectDone" onClick={select?.onDone}>
+                {select?.done ?? L.selectDone}
+              </button>
+            </div>
+          </Segment>
+
+          <Segment name="confirm" active={mode === 'confirm'} height={slot} shape={shape}>
+            <div className="anav__confirm">
+              {confirm?.secondary && (
+                <button type="button" className="anav__secondary" onClick={confirm.secondary.onPress}>
+                  {confirm.secondary.label}
+                </button>
+              )}
+              <button type="button" className="anav__primary" onClick={confirm?.primary.onPress}>
+                {confirm?.primary.label ?? ''}
+              </button>
+            </div>
+          </Segment>
         </nav>
 
         <AnimatePresence initial={false}>

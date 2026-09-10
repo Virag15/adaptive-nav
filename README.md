@@ -5,7 +5,12 @@ A floating glass tab bar for mobile web apps, built with React and
 **Back** circle slides out from under the pill's left end, and the screen can
 hang an **action** circle (bag, save, share…) off the right end. On a product
 the pill itself becomes the **call to action**; on a search screen it becomes
-the **search field**; for a full-screen gallery the whole cluster **hides**.
+the **search field**; on a detail screen it holds the screen's own **toolbar**;
+in a selection it shows the **count and Done**; under a sheet it asks for the
+**decision**; for a full-screen gallery the whole cluster **hides**.
+
+The bar reads what it floats over: above dark content it turns to dark glass
+with white ink, and back again over light content, on its own.
 
 Every curve comes from one rule: the pill is a capsule, the circles share its
 height, and anything inset inside it is concentric (radius − inset), so nothing
@@ -124,13 +129,24 @@ rather than a remount.
 | `context` | all sections, indicator      | Back        | `action`, if any  |
 | `buy`     | the `buy` call to action     | Back        | `action`, if any  |
 | `search`  | the `search` field           | Back        | `action`, if any  |
+| `toolbar` | the `tools`, in the slots    | Back        | `action`, if any  |
+| `select`  | `select` count and Done      | Close       | `action`, if any  |
+| `confirm` | `confirm` secondary, primary | Close       | `action`, if any  |
 | `hidden`  | slid off-screen, inert       | —           | —                 |
 
 `search` focuses the field as the pill opens (synchronously, so iOS treats it
 as part of the tap and raises the keyboard), lifts the bar above the on-screen
 keyboard through the visual viewport, submits on Enter and leaves on Escape
-through `onBack`. `hidden` keeps the tab layout underneath, so the bar returns
-the shape it left; use it for a gallery or a player that wants the whole screen.
+through `onBack`. `toolbar` puts the screen's own actions where the tabs were,
+each a plain button with press feedback, a toggle state (`active`) and a badge;
+the pill is as wide as its tools, and there is no indicator because nothing is
+selected. `select` is a session: the left circle becomes Close (a cross), the
+pill shows the count and a Done button, and the action circle carries what to
+do with the selection (delete, share). `confirm` is a sheet's decision: Close
+on the left, a quiet secondary and the accent primary side by side. `hidden`
+keeps the tab layout underneath, so the bar returns the shape it left; use it
+for a gallery or a player that wants the whole screen. Every wide mode grows
+from nothing as the pill widens and is inert while it is not the mode.
 
 `minimized` collapses the pill to the active section (fold it on scroll); any
 tap or arrow key then calls `onExpand` instead of switching.
@@ -147,17 +163,57 @@ tap or arrow key then calls `onExpand` instead of switching.
 | `action`    | `NavAction`                   | `{ id, label, Icon, badge?, active?, onPress }`; change `id` to crossfade |
 | `buy`       | `BuyAction`                   | `{ label, price, done?, onPress }`                           |
 | `search`    | `SearchField`                 | `{ value, onChange, onSubmit?, placeholder?, label? }`; controlled |
+| `tools`     | `NavAction[]`                 | the toolbar's buttons: `{ id, label, Icon, badge?, active?, onPress }` |
+| `select`    | `SelectSession`               | `{ label, done?, onDone }`                                   |
+| `confirm`   | `ConfirmActions`              | `{ primary: { label, onPress }, secondary?: { label, onPress } }` |
 | `minimized` | `boolean`                     |                                                              |
 | `onExpand`  | `() => void`                  |                                                              |
 | `glass`     | `GlassPreset \| Partial<GlassConfig>` | this bar's material, laid over the global one; see Glass |
 | `indicator` | `'capsule' \| 'dot' \| 'glow' \| 'lift'` | how the selected tab is marked; default `capsule`  |
-| `labels`    | `Partial<NavLabels>`          | `back`, `sections`, `done`, `search`, `clear`, `badge(n)`, `expandHint(label)` |
+| `tone`      | `'auto' \| 'light' \| 'dark'` | which way the bar faces; default `auto` reads the page (see Tone) |
+| `labelled`  | `boolean`                     | print each section's and tool's name under its glyph         |
+| `labels`    | `Partial<NavLabels>`          | `back`, `close`, `tools`, `selectDone`, `sections`, `done`, `search`, `clear`, `badge(n)`, `expandHint(label)` |
 | `backIcon`  | `ReactNode`                   | replaces the built-in chevron                                |
 | `metrics`   | `Partial<NavMetrics>`         | `slot`, `pad`, `gap`, `edge`, `buyInset`, `buyMaxWidth`      |
 | `className` | `string`                      | added to the root                                            |
 
 Icons are any component accepting `className`; they are sized to 25px by the
 stylesheet and coloured with `currentColor`.
+
+## Tone
+
+Over light content the bar is light glass with dark ink; over dark content it
+is dark glass with white ink — the sections, the search field and its
+placeholder, the circles, the count, all of it. With `tone="auto"` (the
+default) the bar decides for itself. A page's pixels cannot be read, so the
+bar asks the DOM what is painted at twelve points under the pill and the
+circles — background colours, gradients averaged from their stops, same-origin
+images read through a canvas — composites them top to bottom, takes the mean
+perceived lightness (CIE L\*), and flips with hysteresis: dark below 45, light
+again only above 55, so a boundary never flickers. It samples on scroll and
+resize, on every mode change, and on a slow timer for everything else (a
+screen fading in, an image finishing its load). Colours ease over 200–300ms.
+
+Pass `tone="light"` or `tone="dark"` to pin it. What the dark face is made of
+is yours to set:
+
+```css
+:root {
+  --anav-glass-base-dark: #1c1c1e;             /* the material over dark content */
+  --anav-fg-dark: #fff;
+  --anav-fg-muted-dark: rgb(255 255 255 / 0.6);
+  --anav-indicator-dark: rgb(255 255 255 / 0.18);
+  --anav-solid-dark: #1c1c1e;
+}
+```
+
+The material knob is `baseDark` in `GlassConfig` (`setGlobalGlass({ baseDark: '#101014' })`).
+Set it equal to `base` to keep the glass light and flip only the ink.
+
+What it cannot read: cross-origin images without CORS (`crossorigin="anonymous"`
+and a permitting server fix that), video, canvas, and `background-image: url()`.
+Where fewer than half the sample points are readable the bar keeps the tone it
+has; if a screen is built from such content, pin the tone for it.
 
 ## Gestures
 
@@ -172,7 +228,8 @@ moving stays on its slot and a real flick jumps one; the settle spring leaves
 at the finger's speed so there is no seam between drag and animation. While it
 travels the indicator stretches along its motion in proportion to its speed and
 lands with one small wobble. Vertical movement is left to the page
-(`touch-action: pan-y`). Buy, search, hidden and the minimized bar do not scrub.
+(`touch-action: pan-y`). The wide modes, the toolbar, hidden and the minimized
+bar do not scrub.
 
 ## Glass
 
@@ -344,7 +401,13 @@ for a sheet that has to clear it, say. The bar's height is `slot + 2 · pad`
 - The buy confirmation is announced through a polite live region.
 - The search field is a real `<input type="search">` with an accessible name
   (`search.label` or `labels.search`); the clear button is named `labels.clear`.
-- A hidden bar is `inert` and `aria-hidden`, so nothing in it can be reached.
+- The toolbar is a `toolbar` of plain buttons; toggles set `aria-pressed`. The
+  selection count is a polite live region. The left circle is named `labels.close`
+  in `select` and `confirm`.
+- A hidden bar is `inert` and `aria-hidden`, so nothing in it can be reached,
+  and so is every wide-mode segment that is not the current mode.
+- White ink over dark glass and dark ink over light glass are chosen for
+  contrast, not decoration; pin `tone` if a screen's content defeats the sampler.
 - `prefers-reduced-motion` drops the travel, the stretch and the landing
   bounce and keeps the feedback; a scrub still works, the indicator just
   arrives without travelling. `prefers-reduced-transparency` makes the glass
@@ -359,10 +422,11 @@ npm run dev         # playground at http://localhost:4321
 npm run check       # tsc (strict) + node --test on geometry, glass and the lens map
 ```
 
-The playground opens on the `liquid` preset and has every mode, dark, slot 44
-and minimized, the four glass presets, the four indicator styles, and a slider
-for each glass knob (the sliders call `setGlobalGlass`, so they are the global
-option). It scrolls a busy page under the bar — tiles, stripes, a grid — so the
-material has something to blur, tint and bend. It loads only the package
-stylesheet, so anything that looks wrong there is the package's fault, not a
-host's.
+The playground opens on the `liquid` preset and has every mode, a dark page,
+slot 44, minimized and labelled, the three tone settings, the four glass
+presets, the four indicator styles, and a slider for each glass knob (the
+sliders call `setGlobalGlass`, so they are the global option). It scrolls a
+busy page under the bar — tiles, stripes, a grid, and a near-black band the
+bar flips over — so the material has something to blur, tint, bend and read.
+It loads only the package stylesheet, so anything that looks wrong there is
+the package's fault, not a host's.

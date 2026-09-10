@@ -7,6 +7,8 @@
 export interface GlassConfig {
   /** The material's own colour, opaque: white for light glass, near-black for dark screens. */
   base: string;
+  /** What the material flips to over dark content (see `tone`); near-black for smoked glass. */
+  baseDark: string;
   /** How much of the backdrop the material covers, 0–1. */
   opacity: number;
   /** Backdrop blur radius in px, across the middle; with a lens it thins toward the lip. */
@@ -32,11 +34,13 @@ export interface GlassConfig {
 export type GlassPreset = 'frosted' | 'clear' | 'liquid' | 'solid';
 
 const TINT = '#5433eb';
+const DARK = '#1c1c1e';
 
 export const GLASS_PRESETS: Record<GlassPreset, GlassConfig> = {
   /** A UI surface first and glass second: milky, deep blur, no lens. */
   frosted: {
     base: '#fff',
+    baseDark: DARK,
     opacity: 0.72,
     blur: 24,
     saturate: 1.8,
@@ -49,6 +53,7 @@ export const GLASS_PRESETS: Record<GlassPreset, GlassConfig> = {
   /** Thin and mostly see-through; the lit rim and a light lens separate it from the page. */
   clear: {
     base: '#fff',
+    baseDark: DARK,
     opacity: 0.38,
     blur: 8,
     saturate: 1.5,
@@ -61,6 +66,7 @@ export const GLASS_PRESETS: Record<GlassPreset, GlassConfig> = {
   /** A thick slab: frosted through the middle, clear and bending at the lip, fringed. */
   liquid: {
     base: '#fff',
+    baseDark: DARK,
     opacity: 0.3,
     blur: 12,
     saturate: 1.7,
@@ -68,11 +74,12 @@ export const GLASS_PRESETS: Record<GlassPreset, GlassConfig> = {
     tintAmount: 0,
     rim: 1,
     refraction: 1,
-    dispersion: 0.5,
+    dispersion: 0.35,
   },
   /** No glass at all: a flat bar for hosts that want the shape without the material. */
   solid: {
     base: '#fff',
+    baseDark: DARK,
     opacity: 1,
     blur: 0,
     saturate: 1,
@@ -129,6 +136,7 @@ export type GlassVars = Record<`--anav-${string}`, string>;
 export function glassVars(g: GlassConfig): GlassVars {
   return {
     '--anav-glass-base': g.base,
+    '--anav-glass-base-dark': g.baseDark,
     '--anav-glass-opacity': String(round(g.opacity)),
     '--anav-glass': `color-mix(in srgb, ${g.base} ${pct(g.opacity)}, transparent)`,
     '--anav-blur': `${round(g.blur)}px`,

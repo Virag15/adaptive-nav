@@ -17,10 +17,24 @@ export type TabOption = {
  *           call to action.
  * search  — the pill becomes a search field, with Back to leave it; the bar
  *           lifts above the on-screen keyboard.
+ * toolbar — a screen's own actions (share, save, more…) fill the pill in place
+ *           of the sections, with Back; nothing is selected, so no indicator.
+ * select  — a selection session: Close on the left, the count in the pill with
+ *           Done, and the action circle for what to do with the selection.
+ * confirm — a sheet's decision: Close on the left, a quiet secondary and the
+ *           accent primary side by side in the pill.
  * hidden  — the whole cluster slides off the bottom of the screen and is inert,
  *           for a full-screen gallery or a player; it keeps its shape for the return.
  */
-export type NavMode = 'tabs' | 'context' | 'buy' | 'search' | 'hidden';
+export type NavMode =
+  | 'tabs'
+  | 'context'
+  | 'buy'
+  | 'search'
+  | 'toolbar'
+  | 'select'
+  | 'confirm'
+  | 'hidden';
 
 /** The right-hand circle. The screen decides what it is: bag, save, share… */
 export type NavAction = {
@@ -53,10 +67,32 @@ export type SearchField = {
   label?: string;
 };
 
+/** The pill in `select` mode: what is selected, and the way to finish. */
+export type SelectSession = {
+  /** "3 selected", or whatever the count reads as. */
+  label: string;
+  /** The Done button's text; defaults to `labels.selectDone`. */
+  done?: string;
+  onDone: () => void;
+};
+
+/** The pill in `confirm` mode: the decision a sheet asks for. */
+export type ConfirmActions = {
+  primary: { label: string; onPress: () => void };
+  /** The quiet way out; omit it and the primary fills the pill. */
+  secondary?: { label: string; onPress: () => void };
+};
+
 /** Every string assistive tech reads. Defaults are English; pass your own for other locales. */
 export type NavLabels = {
   /** Accessible name of the Back circle. */
   back: string;
+  /** Accessible name of the left circle in `select` and `confirm` modes. */
+  close: string;
+  /** Accessible name of the pill in `toolbar` mode. */
+  tools: string;
+  /** The Done button in `select` mode when the session gives no text. */
+  selectDone: string;
   /** Accessible name of the tab strip. */
   sections: string;
   /** Confirmation after a buy press when `buy.done` is not given. */

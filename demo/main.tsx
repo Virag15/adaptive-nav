@@ -11,6 +11,7 @@ import {
   type IndicatorStyle,
   type NavMode,
   type TabOption,
+  type ToneSetting,
 } from '../src';
 import '../src/adaptive-nav.css';
 
@@ -29,6 +30,11 @@ const Square = ({ className }: { className?: string }) => (
     <rect x="5" y="5" width="14" height="14" rx="4" fill="currentColor" />
   </svg>
 );
+const Tri = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 4.5 20 19H4z" fill="currentColor" />
+  </svg>
+);
 
 const TABS: TabOption[] = [
   { id: 'a', label: 'Alpha', Icon: Dot },
@@ -37,11 +43,10 @@ const TABS: TabOption[] = [
   { id: 'd', label: 'Delta', Icon: Dot },
 ];
 
-const MODES: NavMode[] = ['tabs', 'context', 'buy', 'search', 'hidden'];
+const MODES: NavMode[] = ['tabs', 'context', 'buy', 'search', 'toolbar', 'select', 'confirm', 'hidden'];
+const TONES: ToneSetting[] = ['auto', 'light', 'dark'];
 const PRESETS = Object.keys(GLASS_PRESETS) as GlassPreset[];
 const INDICATORS: IndicatorStyle[] = ['capsule', 'dot', 'glow', 'lift'];
-const DARK_BASE = '#1c1c1e';
-const LIGHT_BASE = '#fff';
 /** The playground opens on the material this bar is about. */
 const FIRST_PRESET: GlassPreset = 'liquid';
 
@@ -62,28 +67,23 @@ function Playground() {
   const [mode, setMode] = useState<NavMode>('tabs');
   const [tab, setTab] = useState('a');
   const [on, setOn] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [small, setSmall] = useState(false);
   const [min, setMin] = useState(false);
+  const [labelled, setLabelled] = useState(false);
   const [dark, setDark] = useState(false);
+  const [tone, setTone] = useState<ToneSetting>('auto');
   const [preset, setPreset] = useState<GlassPreset>(FIRST_PRESET);
   const [indicator, setIndicator] = useState<IndicatorStyle>('capsule');
   const [hue, setHue] = useState(252);
   const [query, setQuery] = useState('');
+  const [picked, setPicked] = useState(3);
   const [log, setLog] = useState<string[]>([]);
   const note = (s: string) => setLog((l) => [...l.slice(-5), s]);
   const g = useGlass();
-
-  const applyPreset = (p: GlassPreset, isDark = dark) => {
-    setPreset(p);
-    setGlobalGlass(p);
-    if (isDark) setGlobalGlass({ base: DARK_BASE });
-  };
-
-  const toggleDark = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle('dark', next);
-    setGlobalGlass({ base: next ? DARK_BASE : LIGHT_BASE });
+  const leave = (what: string) => {
+    note(what);
+    setMode('tabs');
   };
 
   return (
@@ -96,7 +96,18 @@ function Playground() {
               {m}
             </button>
           ))}
-          <button id="dark" aria-pressed={dark} onClick={toggleDark}>
+        </div>
+        <div className="row">
+          <b>page</b>
+          <button
+            id="dark"
+            aria-pressed={dark}
+            onClick={() => {
+              // Only the page changes; with tone="auto" the bar reads it and follows.
+              setDark((d) => !d);
+              document.documentElement.classList.toggle('dark', !dark);
+            }}
+          >
             dark
           </button>
           <button id="small" aria-pressed={small} onClick={() => setSmall((s) => !s)}>
@@ -105,11 +116,28 @@ function Playground() {
           <button id="min" aria-pressed={min} onClick={() => setMin((m) => !m)}>
             minimized
           </button>
+          <button id="labelled" aria-pressed={labelled} onClick={() => setLabelled((l) => !l)}>
+            labelled
+          </button>
+          <b>tone</b>
+          {TONES.map((t) => (
+            <button key={t} id={`tone-${t}`} aria-pressed={tone === t} onClick={() => setTone(t)}>
+              {t}
+            </button>
+          ))}
         </div>
         <div className="row">
           <b>glass</b>
           {PRESETS.map((p) => (
-            <button key={p} id={`glass-${p}`} aria-pressed={preset === p} onClick={() => applyPreset(p)}>
+            <button
+              key={p}
+              id={`glass-${p}`}
+              aria-pressed={preset === p}
+              onClick={() => {
+                setPreset(p);
+                setGlobalGlass(p);
+              }}
+            >
               {p}
             </button>
           ))}
@@ -158,7 +186,8 @@ function Playground() {
         </div>
         <p className="note">
           Drag sideways across the tabs to scrub; flick to throw the indicator; press and hold to
-          see the bubble swell. Refraction needs a browser that applies SVG filters to a backdrop
+          see the bubble swell. Scroll the bar over the dark band and it turns to dark glass with
+          white ink on its own. Refraction needs a browser that applies SVG filters to a backdrop
           (Chromium); elsewhere the lit rim carries the glass.
         </p>
         <pre id="log">{log.join('\n')}</pre>
@@ -182,6 +211,27 @@ function Playground() {
         </div>
         <div className="stripes" />
         <div className="grid" />
+      </div>
+
+      <section className="band" id="band">
+        <h2 className="headline">Dark<br />underneath.</h2>
+        <p className="copy">
+          The bar reads what it floats over. Here the page is near black, so the glass turns
+          smoked and the ink turns white — the sections, the search field, the circles, all of
+          it — and turns back as the light content scrolls under it again.
+        </p>
+        <div className="tiles">
+          {TILE_HUES.slice(0, 6).map((h, i) => (
+            <div
+              key={i}
+              className="tile"
+              style={{ background: `linear-gradient(135deg, hsl(${h} 45% 22%), hsl(${h + 40} 40% 12%))` }}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className="stage">
         <p className="copy">
           The lens follows a traced ray: nothing bends at the lip itself, the pull peaks just
           inside it where the edge is steepest, then eases off toward the flat top. It only ever
@@ -208,18 +258,18 @@ function Playground() {
         options={TABS}
         value={tab}
         indicator={indicator}
+        tone={tone}
         onChange={(id) => {
           setTab(id);
           note('change:' + id);
         }}
-        onBack={() => {
-          note('back');
-          setMode('tabs');
-        }}
+        onBack={() => leave(mode === 'select' || mode === 'confirm' ? 'close' : 'back')}
         action={
-          mode === 'context' || mode === 'buy' || mode === 'search'
+          mode === 'context' || mode === 'buy' || mode === 'search' || mode === 'toolbar'
             ? { id: 'save', label: 'Save', Icon: Dot, active: on, badge: 2, onPress: () => setOn((o) => !o) }
-            : undefined
+            : mode === 'select'
+              ? { id: 'delete', label: 'Delete', Icon: Tri, onPress: () => note('delete ' + picked) }
+              : undefined
         }
         buy={
           mode === 'buy'
@@ -236,8 +286,25 @@ function Playground() {
               }
             : undefined
         }
+        tools={[
+          { id: 'share', label: 'Share', Icon: Tri, onPress: () => note('tool:share') },
+          { id: 'like', label: 'Like', Icon: Ring, active: saved, onPress: () => setSaved((s) => !s) },
+          { id: 'more', label: 'More', Icon: Square, badge: 1, onPress: () => note('tool:more') },
+        ]}
+        select={{
+          label: `${picked} selected`,
+          onDone: () => {
+            setPicked((n) => n + 1);
+            leave('select done');
+          },
+        }}
+        confirm={{
+          secondary: { label: 'Cancel', onPress: () => leave('confirm:cancel') },
+          primary: { label: 'Apply filters', onPress: () => leave('confirm:apply') },
+        }}
         metrics={small ? { slot: 44 } : undefined}
         minimized={min}
+        labelled={labelled}
         onExpand={() => {
           setMin(false);
           note('expand');

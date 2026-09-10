@@ -11,7 +11,7 @@
      set from the sliders through setGlobalGlass(). -->
 <style>
   body { margin: 0; font: 400 100%/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #efeff2; color: #0b0b0c; }
-  :root.dark { --anav-fg: #fff; --anav-fg-muted: rgb(255 255 255 / 0.55); --anav-indicator: rgb(255 255 255 / 0.16); --anav-solid: #1c1c1e; }
+  /* Dark is a page setting only: the bar reads the page and flips on its own. */
   :root.dark body { background: #111; color: #eee; }
 
   .panel { position: sticky; top: 0; z-index: 30; padding: 12px 20px 14px; background: rgb(239 239 242 / 0.92); backdrop-filter: blur(12px); border-bottom: 1px solid rgb(0 0 0 / 0.08); }
@@ -40,6 +40,8 @@
   .grid { height: 120px; border-radius: 18px; background-image: linear-gradient(rgb(0 0 0 / 0.5) 1px, transparent 1px), linear-gradient(90deg, rgb(0 0 0 / 0.5) 1px, transparent 1px); background-size: 16px 16px; background-color: #d8e2ff; }
   :root.dark .grid { background-image: linear-gradient(rgb(255 255 255 / 0.4) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.4) 1px, transparent 1px); background-color: #1b2540; }
   .headline { font-size: clamp(40px, 9vw, 96px); line-height: 0.95; letter-spacing: -0.04em; font-weight: 800; margin: 0; }
+  /* A stretch of near-black page, so the bar has something dark to float over. */
+  .band { padding: 48px 20px 64px; display: grid; gap: 20px; background: #0d0d10; color: #f2f2f4; }
   .copy { max-width: 60ch; font-size: 15px; opacity: 0.85; }
 </style>
 </head>

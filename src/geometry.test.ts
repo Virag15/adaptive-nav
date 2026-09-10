@@ -85,3 +85,14 @@ test('search folds the tabs away and spans the screen like buy; hidden keeps the
   );
   assert.ok(isWide('buy') && isWide('search') && !isWide('context') && !isWide('hidden'));
 });
+
+test('select and confirm are wide; a toolbar folds the tabs but is only as wide as its tools', () => {
+  for (const mode of ['select', 'confirm'] as const) {
+    assert.ok(isWide(mode));
+    assert.deepEqual(visibleSlots(4, mode, false, 0), [false, false, false, false]);
+  }
+  assert.ok(!isWide('toolbar'));
+  assert.deepEqual(visibleSlots(4, 'toolbar', false, 0), [false, false, false, false]);
+  // Three tools at slot 52 with 6px of pad either side.
+  assert.equal(pillWidth('toolbar', 3, 52, 64, 393, DEFAULT_METRICS), 3 * 52 + 12);
+});

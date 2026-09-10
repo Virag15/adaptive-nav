@@ -34,6 +34,7 @@ test('the composites agree with the knobs that feed them', () => {
   const vars = glassVars({ ...DEFAULT_GLASS, base: '#1c1c1e', opacity: 0.5, blur: 12, saturate: 1.25 });
   assert.equal(vars['--anav-glass'], 'color-mix(in srgb, #1c1c1e 50%, transparent)');
   assert.equal(vars['--anav-glass-opacity'], '0.5');
+  assert.equal(vars['--anav-glass-base-dark'], DEFAULT_GLASS.baseDark);
   assert.equal(vars['--anav-glass-blur'], 'blur(12px) saturate(125%)');
   assert.equal(vars['--anav-blur'], '12px');
   assert.equal(vars['--anav-saturate'], '125%');

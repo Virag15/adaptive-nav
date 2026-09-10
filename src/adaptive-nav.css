@@ -35,6 +35,13 @@
   --anav-solid: #fff;
   --anav-fg: #0b0b0c;
   --anav-fg-muted: #8a8a8f;
+  /* Over dark content the bar flips — the material to a dark base, the ink to
+     white — on its own (tone="auto") or when told. These are what it flips to. */
+  --anav-glass-base-dark: #1c1c1e;
+  --anav-fg-dark: #fff;
+  --anav-fg-muted-dark: rgb(255 255 255 / 0.6);
+  --anav-indicator-dark: rgb(255 255 255 / 0.18);
+  --anav-solid-dark: #1c1c1e;
   /* The travelling selection indicator: a lighter piece of the same material,
      so it thins along with the glass rather than sitting on it like a sticker. */
   --anav-indicator: color-mix(
@@ -118,6 +125,17 @@
     color-mix(in srgb, var(--anav-tint) calc(var(--anav-glass-opacity) * 100%), transparent)
       calc(var(--anav-tint-amount) * 100%)
   );
+}
+
+/* The dark face. The composites are re-derived here, on the bar, because the
+   root's were derived from the light base. */
+.anav[data-tone='dark'] {
+  --anav-glass-base: var(--anav-glass-base-dark);
+  --anav-glass: color-mix(in srgb, var(--anav-glass-base-dark) calc(var(--anav-glass-opacity) * 100%), transparent);
+  --anav-fg: var(--anav-fg-dark);
+  --anav-fg-muted: var(--anav-fg-muted-dark);
+  --anav-indicator: var(--anav-indicator-dark);
+  --anav-solid: var(--anav-solid-dark);
 }
 
 /* Width is driven by the mode; centring comes from the flex parent, so the
@@ -342,8 +360,28 @@
   touch-action: pan-y;
 }
 .anav__btn[data-active] { color: var(--anav-fg); }
+/* Labelled: the glyph gives up a little height and the name sits under it. */
+.anav[data-labelled] .anav__btn { align-content: center; row-gap: 1px; }
+.anav[data-labelled] .anav__glyph { width: 22px; height: 22px; }
+.anav[data-labelled] .anav__btn svg { width: 22px; height: 22px; }
+.anav__label {
+  max-width: calc(100% - 4px);
+  font-size: 10px;
+  font-weight: 640;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .anav__btn svg { width: 25px; height: 25px; }
 .anav[data-scrub] .anav__btn { cursor: grabbing; }
+
+/* toolbar: the screen's own actions in the same slots, nothing selected, so
+   a press is felt on the glyph rather than marked by the capsule. */
+.anav__tool { color: var(--anav-fg); }
+.anav__tool[data-on] { color: var(--anav-accent); }
+.anav__tool:active .anav__glyph { transform: scale(0.88); }
 
 /* The landing bounce is driven from the component (Web Animations), so the
    first paint never pops and a re-render never replays it. */
@@ -394,30 +432,34 @@
   filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--anav-accent) 45%, transparent));
 }
 
-/* ---------- Buy mode: the accent segment that fills the pill ---------- */
+/* ---------- Segments: what fills the pill in the wide modes ---------- */
 
-/* Zero-width outside buy mode: the padding lives on the inner span, so the
-   outer box collapses completely instead of leaving 36px hanging off the pill. */
-.anav__cta {
+/* Zero-width outside their own mode, so the track measures only the slots;
+   what is inside overflows and is clipped, so a collapsed segment leaves
+   nothing behind. */
+.anav__segment {
   position: relative;
   flex: 0 0 0;
   min-width: 0;
   display: flex;
   border-radius: var(--anav-r-inner, 28px);
-  background: var(--anav-accent);
-  color: var(--anav-accent-fg);
-  /* Label and price must share ~160px on a 360px phone once Back and the
-     action take their circles; the type eases down rather than the price dropping. */
+  overflow: hidden;
+  /* The labels must share ~160px on a 360px phone once Back and the action
+     take their circles; the type eases down rather than anything dropping. */
   font-size: clamp(13.5px, 3.9vw, 15.5px);
-  font-weight: 660;
+  font-weight: 640;
   letter-spacing: -0.02em;
   white-space: nowrap;
-  overflow: hidden;
-  transition: transform 160ms var(--anav-ease);
 }
-.anav[data-mode='buy'] .anav__cta { flex: 1 1 0; }
-.anav__cta:active { transform: scale(0.97); }
-.anav__ctaInner {
+.anav[data-mode='buy'] .anav__segment--buy,
+.anav[data-mode='search'] .anav__segment--search,
+.anav[data-mode='select'] .anav__segment--select,
+.anav[data-mode='confirm'] .anav__segment--confirm {
+  flex: 1 1 0;
+}
+
+/* buy: the accent call to action, label left, price right. */
+.anav__cta {
   flex: 1 1 0;
   min-width: 0;
   display: flex;
@@ -425,7 +467,13 @@
   justify-content: space-between;
   gap: 10px;
   padding: 0 16px;
+  border-radius: inherit;
+  background: var(--anav-accent);
+  color: var(--anav-accent-fg);
+  font-weight: 660;
+  transition: transform 160ms var(--anav-ease);
 }
+.anav__cta:active { transform: scale(0.97); }
 .anav__ctaLabel {
   position: relative;
   display: grid;
@@ -443,20 +491,15 @@
   opacity: 0.86;
 }
 
-/* ---------- Search mode: the field that fills the pill ---------- */
-
+/* search: magnifier, the field, and a clear button once there is text. The
+   class sits on the segment itself, which already owns the flex sizing. */
 .anav__field {
-  position: relative;
-  flex: 0 0 0;
-  min-width: 0;
-  display: flex;
   align-items: center;
   gap: 6px;
-  border-radius: var(--anav-r-inner, 28px);
-  overflow: hidden;
   color: var(--anav-fg);
+  font-weight: 400;
+  letter-spacing: 0;
 }
-.anav[data-mode='search'] .anav__field { flex: 1 1 0; }
 .anav__fieldIcon {
   flex: none;
   display: grid;
@@ -465,6 +508,7 @@
   height: 25px;
   margin-left: 14px;
   color: var(--anav-fg-muted);
+  transition: color 200ms ease;
 }
 .anav__fieldIcon svg { width: 22px; height: 22px; }
 .anav__input {
@@ -481,6 +525,7 @@
   font-size: 16px;
   color: inherit;
   outline: none;
+  transition: color 200ms ease;
 }
 .anav__input::placeholder { color: var(--anav-fg-muted); }
 .anav__input::-webkit-search-decoration,
@@ -498,10 +543,73 @@
   border-radius: 50%;
   color: var(--anav-fg);
   background: color-mix(in srgb, var(--anav-fg) 10%, transparent);
-  transition: transform 160ms var(--anav-ease);
+  transition: transform 160ms var(--anav-ease), background-color 300ms var(--anav-ease), color 200ms ease;
 }
 .anav__clear:active { transform: scale(0.9); }
 .anav__clear svg { width: 16px; height: 16px; }
+
+/* select: the count, and Done as a pill inside the pill. */
+.anav__select {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-left: 18px;
+  color: var(--anav-fg);
+  transition: color 200ms ease;
+}
+.anav__selectLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.anav__selectDone {
+  flex: none;
+  height: calc(100% - 8px);
+  margin: 4px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--anav-accent);
+  color: var(--anav-accent-fg);
+  font-weight: 660;
+  transition: transform 160ms var(--anav-ease);
+}
+.anav__selectDone:active { transform: scale(0.96); }
+
+/* confirm: a quiet secondary beside the accent primary. */
+.anav__confirm {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+}
+.anav__secondary,
+.anav__primary {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  border-radius: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 160ms var(--anav-ease), background-color 300ms var(--anav-ease), color 200ms ease;
+}
+.anav__secondary {
+  color: var(--anav-fg);
+  background: color-mix(in srgb, var(--anav-fg) 9%, transparent);
+}
+.anav__primary {
+  flex-grow: 1.4;
+  background: var(--anav-accent);
+  color: var(--anav-accent-fg);
+  font-weight: 660;
+}
+.anav__secondary:active,
+.anav__primary:active { transform: scale(0.97); }
 
 /* ---------- Badge ---------- */
 
