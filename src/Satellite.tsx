@@ -20,6 +20,8 @@ export function Satellite({
   reduce,
   lens,
   group = false,
+  className,
+  tag,
   badge,
   children,
 }: {
@@ -31,6 +33,9 @@ export function Satellite({
   lens: boolean;
   /** A section as wide as its items, rather than a circle. */
   group?: boolean;
+  className?: string;
+  /** What the body belongs to, so a measurement can tell a section on its way out from one that is staying. */
+  tag?: string;
   badge?: ReactNode;
   children: ReactNode;
 }) {
@@ -40,7 +45,8 @@ export function Satellite({
     : `translateX(${side === 'leading' ? tuck : -tuck}px) scaleX(0.95) scaleY(0.8)`;
   return (
     <motion.div
-      className={`anav__satellite anav__satellite--${side}${group ? ' anav__satellite--group' : ''}`}
+      className={`anav__satellite anav__satellite--${side}${group ? ' anav__satellite--group' : ''}${className ? ` ${className}` : ''}`}
+      data-for={tag}
       initial={{ opacity: 0, transform: tucked }}
       animate={{
         opacity: 1,

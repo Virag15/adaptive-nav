@@ -638,6 +638,7 @@
   height: 20px;
 }
 .anav[data-placement='top'] .anav__label {
+  /* The fit guarantees a cell holds its name or shows none; nothing to clip. */
   max-width: none;
   font-size: 13px;
   letter-spacing: -0.01em;
@@ -646,7 +647,12 @@
   top: 3px;
   right: 6px;
 }
-/* The stand-in that measures each name's natural width; never seen. */
+/* The stand-ins that measure a name's, and the title's, natural width; never seen. */
+.anav__measure--title {
+  font-size: 15px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
 .anav__measure {
   position: absolute;
   top: 0;
@@ -656,7 +662,28 @@
   white-space: nowrap;
 }
 
-/* The trailing section: one glass body, as wide as its items. */
+/* Either side of the pill is a row of distinct glass sections, the gap
+   between them the fixed space the guideline asks for between a symbol and a
+   text button. The leading row is anchored to the pill's edge and reads Back
+   then title, so Back stays at the far end and the title sits next to the
+   pill; the trailing row reads in order. */
+.anav__side {
+  position: absolute;
+  top: 0;
+  height: var(--anav-sat, 68px);
+  display: flex;
+  align-items: center;
+  gap: var(--anav-gap, 8px);
+  pointer-events: none;
+}
+.anav__side--leading { right: calc(100% + var(--anav-gap, 8px)); }
+.anav__side--trailing { left: calc(100% + var(--anav-gap, 8px)); }
+.anav__side .anav__satellite {
+  position: relative;
+  left: auto;
+  right: auto;
+  flex: none;
+}
 .anav__satellite--group {
   width: auto;
   min-width: var(--anav-sat, 68px);
@@ -675,7 +702,19 @@
   align-items: center;
   height: calc(100% - var(--anav-pad, 6px) * 2);
 }
-/* An action in the section: a symbol with no bezel; the section is its container. */
+/* The title, inline with the controls: a word or a short phrase. */
+.anav__title {
+  max-width: 200px;
+  padding: 0 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  color: var(--anav-fg);
+}
+/* An action in a section: a symbol with no bezel; the section is its container. */
 .anav__iconButton {
   position: relative;
   display: grid;
@@ -685,61 +724,65 @@
   padding: 0 4px;
   border-radius: var(--anav-r-inner, 28px);
   color: var(--anav-fg);
-  transition: color 160ms ease;
+  transition: color 160ms ease, background-color 160ms ease;
 }
 .anav__iconButton svg { width: 20px; height: 20px; }
 .anav__iconButton[data-on] { color: var(--anav-accent); }
 .anav__iconButton:active .anav__glyph { transform: scale(0.88); }
 .anav__iconButton > .anav__badge { top: -4px; right: -2px; }
-/* The search field, a fixed width, so the band never has to guess. */
-.anav__fieldItem {
-  display: flex;
-  align-items: center;
+/* The field's section takes the width the side can spare. */
+.anav__fieldRow {
   gap: 4px;
-  width: 260px;
-  height: 100%;
-  padding-left: 2px;
-  border-radius: var(--anav-r-inner, 28px);
-  background: color-mix(in srgb, var(--anav-fg) 6%, transparent);
+  padding: 0 6px 0 4px;
   color: var(--anav-fg);
 }
-.anav__fieldItem .anav__fieldIcon { margin-left: 8px; width: 22px; height: 22px; }
-.anav__fieldItem .anav__fieldIcon svg { width: 18px; height: 18px; }
-.anav__fieldItem .anav__clear { width: 28px; height: 28px; margin-right: 4px; }
-.anav__count {
-  padding: 0 8px 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  color: var(--anav-fg);
-}
-/* The one prominent action, tinted; and the quiet secondary beside it. */
-.anav__prominent,
-.anav__quiet {
+.anav__fieldRow .anav__fieldIcon { margin-left: 8px; width: 22px; height: 22px; }
+.anav__fieldRow .anav__fieldIcon svg { width: 18px; height: 18px; }
+.anav__fieldRow .anav__clear { width: 28px; height: 28px; margin-right: 0; }
+/* Text buttons fill their own section, so the gap between sections is the
+   fixed space that keeps two labels from running together. */
+.anav__quiet,
+.anav__prominent {
   display: flex;
   align-items: center;
   gap: 10px;
   height: 100%;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: var(--anav-r-inner, 28px);
   font-size: 14px;
   font-weight: 640;
   letter-spacing: -0.01em;
   white-space: nowrap;
-  transition: transform 160ms var(--anav-ease), background-color 300ms var(--anav-ease), color 200ms ease;
+  transition: transform 160ms var(--anav-ease), background-color 160ms ease, color 200ms ease;
 }
+.anav__quiet { color: var(--anav-fg); }
 .anav__prominent {
-  background: var(--anav-accent);
-  color: var(--anav-accent-fg);
+  padding: 0 18px;
   font-weight: 660;
+  color: var(--anav-accent-fg);
 }
-.anav__quiet {
-  color: var(--anav-fg);
-  background: color-mix(in srgb, var(--anav-fg) 9%, transparent);
+.anav__quiet:active,
+.anav__prominent:active { transform: scale(0.97); }
+/* The one prominent action: its whole section is tinted, the way a prominent
+   toolbar item is, so there is a clear focal point. */
+.anav__satellite--prominent .anav__surface { background: var(--anav-accent); }
+.anav__satellite--prominent .anav__frost { display: none; }
+.anav__satellite--prominent .anav__surface,
+.anav__satellite--prominent .anav__edge {
+  transition: filter 160ms ease, transform 160ms var(--anav-ease);
 }
-.anav__prominent:active,
-.anav__quiet:active { transform: scale(0.97); }
+
+/* A pointer: the hover states a Mac expects, as light fills within the
+   section, which the guideline says is the container. */
+@media (hover: hover) and (pointer: fine) {
+  .anav__btn:not([data-active]):hover { background: color-mix(in srgb, var(--anav-fg) 6%, transparent); }
+  .anav__iconButton:hover,
+  .anav__quiet:hover { background: color-mix(in srgb, var(--anav-fg) 8%, transparent); }
+  .anav__circle:hover {
+    box-shadow: var(--anav-shadow), inset 0 0 0 999px color-mix(in srgb, var(--anav-fg) 6%, transparent);
+  }
+  .anav__satellite--prominent:hover .anav__surface { filter: brightness(1.08); }
+}
 
 /* ---------- Badge ---------- */
 

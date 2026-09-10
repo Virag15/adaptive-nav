@@ -283,6 +283,17 @@ function Playground() {
         tone={tone}
         quality={quality}
         placement={placement}
+        title={
+          mode === 'context'
+            ? 'Store'
+            : mode === 'buy'
+              ? 'Solitaire ring'
+              : mode === 'toolbar'
+                ? 'Photo'
+                : mode === 'confirm'
+                  ? 'Filters'
+                  : undefined
+        }
         onChange={(id) => {
           setTab(id);
           note('change:' + id);

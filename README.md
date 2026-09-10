@@ -174,6 +174,7 @@ tap or arrow key then calls `onExpand` instead of switching.
 | `quality`   | `'auto' \| 'full' \| 'edges' \| 'off'` | how much lens the device is asked for; default `auto` (see Performance) |
 | `labelled`  | `boolean`                     | print each section's and tool's name under its glyph         |
 | `placement` | `'auto' \| 'bottom' \| 'top'` | where the bar lives; default `auto` switches on width (see Placement) |
+| `title`     | `string`                      | the view's title, leading at regular width, under 15 characters; a selection's count stands in |
 | `labels`    | `Partial<NavLabels>`          | `back`, `close`, `tools`, `selectDone`, `sections`, `done`, `search`, `clear`, `badge(n)`, `expandHint(label)` |
 | `backIcon`  | `ReactNode`                   | replaces the built-in chevron                                |
 | `metrics`   | `Partial<NavMetrics>`         | `slot`, `pad`, `gap`, `edge`, `buyInset`, `buyMaxWidth`      |
@@ -195,29 +196,54 @@ on width rather than device, because Safari on an iPad reports itself as a
 Mac and the guideline's own model is compact versus regular size class.
 `placement="bottom"` or `"top"` pins it.
 
-At the top the cluster is three glass sections, the way iPadOS 26 draws them:
+At the top the cluster is a row of glass sections, grouped the way the
+guideline's *Item groupings* section orders a toolbar:
 
-| mode      | leading | centre                              | trailing section                 |
-| --------- | ------- | ----------------------------------- | -------------------------------- |
-| `tabs`    | —       | the tabs, glyph beside name         | —                                |
-| `context` | Back    | the tabs                            | the action                       |
-| `buy`     | Back    | the tabs                            | the action, the call to action   |
-| `search`  | Back    | the tabs                            | the action, the field            |
-| `toolbar` | Back    | the tabs                            | the tools, the action            |
-| `select`  | Close   | the tabs                            | the action, the count, Done      |
-| `confirm` | Close   | the tabs                            | Cancel, the primary              |
-| `hidden`  | slides off the top edge                                                    |
+| edge     | sections, in order                                                              |
+| -------- | ------------------------------------------------------------------------------- |
+| leading  | Back or Close, "at the far leading edge"; then the title, its own section       |
+| centre   | the tabs, glyph beside name, one cell width                                     |
+| trailing | the symbol actions together in one section; the search field; the quiet secondary; last, the one prominent action, its whole section tinted |
 
-The tabs stay through every mode, since at this width there is room for them,
-and what a mode adds goes to the trailing section: the one prominent action is
-last and tinted, the secondary beside it quiet, the field a fixed 260 px, the
-actions plain symbols with no bezel because, as the guideline says, the
-section is their container. The band is 50 px tall with 40 px cells. Every
-cell is one width, the widest name's, measured from stand-ins before paint,
-which is what lets the capsule, the scrub and the magnet keep the arithmetic
-of a compact pill. The trailing section is frost, tint and shine without a
-lens. `minimized` has no effect at the top, where the guideline asks that the
-tab bar stay visible.
+| mode      | leading           | trailing                                  |
+| --------- | ----------------- | ----------------------------------------- |
+| `tabs`    | —                 | —                                         |
+| `context` | Back, title       | the action                                |
+| `buy`     | Back, title       | the action; the call to action, prominent |
+| `search`  | Back              | the action; the field                     |
+| `toolbar` | Back, title       | the tools and the action, one section     |
+| `select`  | Close, the count  | the action; Done, prominent               |
+| `confirm` | Close, title      | Cancel, quiet; the primary, prominent     |
+| `hidden`  | slides off the top edge                                       |
+
+Each section is its own glass body with fixed space between, which is what
+the guideline asks for between a symbol and a text button and between two
+text buttons. Actions are plain symbols with no bezel, since "the section
+provides a visible container". There is exactly one prominent action, last
+on the trailing edge, "so there's a clear focal point". The count is a title,
+not an action, so it sits after Close. The tabs stay through every mode.
+
+The band never overflows. The guideline leaves overflow menus to the system
+and asks for layouts that do not need one, and it has the centre give way
+before the edges: names beside glyphs while the cells fit the window, glyphs
+alone when they do not, the title only after that, narrower cells last. The
+pill shifts to centre the whole cluster, since the two edges rarely weigh the
+same. All of it is measured from stand-ins before paint, and only sections
+that are staying are counted, so a section on its way out never flickers the
+fit. The band is 50 px with 40 px cells; every cell is one width, the widest
+name's, which is what lets the capsule, the scrub and the magnet keep the
+arithmetic of a compact pill. `minimized` has no effect at the top, where the
+guideline asks that the tab bar stay visible.
+
+**macOS.** "The toolbar resides in the frame at the top of a window" and
+"window titles can display inline with controls": the band and its title.
+"Toolbar items don't include a bezel": symbols in sections. A pointer gets
+the hover states a Mac expects, a light fill within the section, only under
+`(hover: hover) and (pointer: fine)`, so a finger never sees a stuck hover.
+"Make every toolbar item available as a command in the menu bar" has no web
+equivalent; every item is a real button, so it is reachable from the
+keyboard, and the tabs answer arrow keys. Toolbar customization is not
+offered.
 
 ## Tone
 
