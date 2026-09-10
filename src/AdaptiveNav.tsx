@@ -428,6 +428,8 @@ export function AdaptiveNav({
   const hidden = mode === 'hidden';
   const searching = mode === 'search';
   const toolbar = mode === 'toolbar';
+  /** The pill takes the screen: always in a wide mode, in tabs and context when asked to and not minimized. */
+  const spanning = wide || (fill && !minimized && !toolbar);
   /** The left circle is out whenever the bar is not at the home level… */
   const pushed = mode !== 'tabs' && !hidden;
   /** …and reads as Close, not Back, where the screen is a session or a sheet. */
@@ -444,7 +446,8 @@ export function AdaptiveNav({
   const pillLens = bends && rendition.pill;
   const circleLens = bends && rendition.circles;
   /** Only the travelling capsule is a bubble; a dot or a glow has no lip to bend at. */
-  const bubbleLens = pillLens && rendition.bubble && indicator === 'capsule';
+  // A cell wider than the slot gets a rounded indicator, not a disc; the bubble's lens map is a disc, so it sits this out there.
+  const bubbleLens = pillLens && rendition.bubble && indicator === 'capsule' && !(spanning && !wide);
   const dispersion = rendition.dispersion ? g.dispersion : 0;
   // url(#…) cannot carry the punctuation React puts around its ids.
   const filterId = 'anav-' + useId().replace(/[^\w-]/g, '');
@@ -478,7 +481,6 @@ export function AdaptiveNav({
   // its leading edge stays beside Back.
   const leading = mode !== 'tabs';
   const trailing = !!action;
-  const spanning = wide || (fill && !minimized && !toolbar);
   const width = spanning
     ? spanWidth(vw, sat, (leading ? 1 : 0) + (trailing ? 1 : 0), m)
     : pillWidth(mode, shown, slot, sat, vw, m);
@@ -526,9 +528,12 @@ export function AdaptiveNav({
   }, [pressed, scale]);
   const scaleX = useTransform([scale, stretch], ([s, st]: number[]) => s * st);
   const scaleY = useTransform([scale, stretch], ([s, st]: number[]) => s / Math.sqrt(st));
-  const box = indicatorBox(indicator, slot, m.pad);
-  // Centred in its cell: in a spanning pill a cell is wider than the indicator.
-  const capsuleX = useTransform(x, (v) => v + box.dx + (pitch - slot) / 2);
+  const slotBox = indicatorBox(indicator, slot, m.pad);
+  // In a spanning pill the capsule widens to its cell, less a little air, so
+  // the selection reads as the cell rather than a disc floating in it; a dot
+  // or a glow keeps its size. Either way it sits centred in the cell.
+  const box = spanning && !wide && indicator === 'capsule' ? { ...slotBox, w: Math.max(slotBox.w, pitch - 8) } : slotBox;
+  const capsuleX = useTransform(x, (v) => v + box.dx + (pitch - box.w) / 2);
   const showCapsule = !wide && !toolbar && indicator !== 'lift';
   // The magnet only makes sense while every slot is where the arithmetic says.
   const magnet = showCapsule && !minimized && !reduceMotion;
