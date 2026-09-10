@@ -210,7 +210,7 @@ guideline's *Item groupings* section orders a toolbar:
 | -------- | ------------------------------------------------------------------------------- |
 | leading  | Back or Close, "at the far leading edge"; then the title, its own section       |
 | centre   | the tabs, glyph beside name, one cell width                                     |
-| trailing | the symbol actions together in one section — the app's own `trailing` items first, then the screen's; the search field; the quiet secondary; last, the one prominent action, its whole section tinted |
+| trailing | each of the app's `trailing` items as its own circle, then a screen's toolbar as one body, then the screen's action as its own circle; the search field; the quiet secondary; last, the one prominent action, its whole section tinted |
 
 | mode      | leading           | trailing                                  |
 | --------- | ----------------- | ----------------------------------------- |
@@ -260,8 +260,12 @@ the field still arrives with `search` mode.
 
 Each section is its own glass body with fixed space between, which is what
 the guideline asks for between a symbol and a text button and between two
-text buttons. Actions are plain symbols with no bezel, since "the section
-provides a visible container". There is exactly one prominent action, last
+text buttons. Every trailing item and the screen's action get a body each,
+the same circles they are on a phone: the *Buttons* guideline crosses out two
+controls of different purposes sharing one capsule, and an app's own items
+and a screen's action are exactly that. A screen's `tools` are one set, so
+they keep one body, which is also the shape they have filling the pill on a
+phone. There is exactly one prominent action, last
 on the trailing edge, "so there's a clear focal point". The count is a title,
 not an action, so it sits after Close. The tabs stay through every mode.
 

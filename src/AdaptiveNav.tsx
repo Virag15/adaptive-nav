@@ -1089,6 +1089,30 @@ export function AdaptiveNav({
       {badgeText(item.badge)}
     </button>
   );
+  /** A symbol action as its own circle, the shape it has on a phone. */
+  const circleAction = (item: NavAction, tag: string) => (
+    <Satellite
+      key={`solo:${item.id}`}
+      side="trailing"
+      tuck={sat + m.gap}
+      reduce={calm}
+      lens={circleLens}
+      tag={tag}
+      badge={item.badge ? <Badge count={item.badge} reduce={reduceMotion} /> : undefined}
+    >
+      <button
+        type="button"
+        className="anav__circle"
+        aria-label={item.label}
+        aria-pressed={item.active}
+        data-on={item.active || undefined}
+        onClick={item.onPress}
+      >
+        <item.Icon />
+        {badgeText(item.badge)}
+      </button>
+    </Satellite>
+  );
   const back = pushed ? (
     <Satellite key="back" side="leading" tuck={sat + m.gap} reduce={reduceMotion || keyboardInput} lens={circleLens}>
       <button type="button" className="anav__circle" aria-label={closing ? L.close : L.back} onClick={onBack}>
@@ -1128,19 +1152,24 @@ export function AdaptiveNav({
     // secondary, and last the one prominent action, its whole section tinted.
     <div className="anav__side anav__side--trailing">
             <AnimatePresence initial={false}>
-              {(action || trailing?.length || (toolbar && tools?.length)) &&
+              {trailing?.map((item) => circleAction(item, '*'))}
+              {toolbar &&
+                tools?.length &&
                 section(
-                  'actions',
-                  '*',
+                  'tools',
+                  'toolbar',
                   undefined,
+                  // One screen's toolbar is one set, so it keeps one body — the
+                  // same shape it has filling the pill on a phone.
                   <div className="anav__row" role="toolbar" aria-label={L.tools}>
                     <AnimatePresence initial={false}>
-                      {trailing?.map((item) => <GroupItem key={`trailing:${item.id}`}>{iconButton(item)}</GroupItem>)}
-                      {toolbar && tools?.map((tool) => <GroupItem key={`tool:${tool.id}`}>{iconButton(tool)}</GroupItem>)}
-                      {action && <GroupItem key={`action:${action.id}`}>{iconButton(action)}</GroupItem>}
+                      {tools.map((tool) => (
+                        <GroupItem key={`tool:${tool.id}`}>{iconButton(tool)}</GroupItem>
+                      ))}
                     </AnimatePresence>
                   </div>,
                 )}
+              {action && circleAction(action, '*')}
               {(searching || (persistentField && topFit.field)) &&
                 section(
                   'field',
