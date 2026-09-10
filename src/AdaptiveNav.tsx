@@ -48,7 +48,7 @@ import {
   SHAPE_SPRING,
   STRETCH_SPRING,
 } from './springs';
-import { releaseTarget, scrubPosition, trailVelocity, TRAIL_MS, type PointerSample } from './interaction';
+import { nextIndex, releaseTarget, scrubPosition, trailVelocity, TRAIL_MS, type PointerSample } from './interaction';
 import { glassVars, type GlassInput } from './glass';
 import { useGlass } from './useGlass';
 import { useBackdropTone } from './useBackdropTone';
@@ -72,8 +72,13 @@ import type {
 export type AdaptiveNavProps = {
   mode: NavMode;
   options: TabOption[];
-  /** The id of the selected tab. */
-  value: string;
+  /**
+  * The id of the current section. Omit it — or give an id no section has — and
+  * none is marked: no indicator, every glyph muted, and the sections still
+  * tappable as ways out. That is what a pushed screen wants, where the screen
+  * showing is not one of the sections: `value={pushed ? undefined : tab}`.
+  */
+  value?: string;
   onChange: (id: string) => void;
   /** The left circle: Back on a pushed screen, Close in `select` and `confirm`. */
   onBack?: () => void;
@@ -361,6 +366,7 @@ function Tab({
   magnet,
   hidden,
   isValue,
+  focusable,
   active,
   label,
   labelled,
@@ -380,6 +386,8 @@ function Tab({
   magnet: boolean;
   hidden: boolean;
   isValue: boolean;
+  /** Which tab the roving tabindex rests on; the current one, or the first when none is. */
+  focusable: boolean;
   active: boolean;
   label: string;
   labelled: boolean;
@@ -410,7 +418,7 @@ function Tab({
       aria-selected={isValue}
       aria-label={label}
       aria-hidden={hidden || undefined}
-      tabIndex={hidden ? -1 : isValue ? 0 : -1}
+      tabIndex={hidden || !focusable ? -1 : 0}
       data-active={active || undefined}
       className="anav__btn"
       initial={false}
@@ -501,7 +509,7 @@ export function AdaptiveNav({
   // the trailing section, so the track there only ever holds the tabs.
   const wideTrack = wide && !top;
   const toolsInTrack = toolbar && !top;
-  const folded = minimized && !top;
+  const folded = minimized && !top && options.some((o) => o.id === value);
   /** The pill takes the screen: always in a wide mode, in tabs and context when asked to and not minimized. */
   const spanning = !top && (wide || (fill && !minimized && !toolbar));
   /** The left circle is out whenever the bar is not at the home level… */
@@ -541,6 +549,10 @@ export function AdaptiveNav({
   // Where the indicator is headed while a finger is down; not a commitment yet.
   const activeId = preview ?? value;
   const activeIndex = Math.max(0, options.findIndex((o) => o.id === activeId));
+  /** Whether any section is the current one at all; a pushed screen may say none is. */
+  const marked = options.some((o) => o.id === activeId);
+  /** The section the pill would fold to. Nothing is current, so there is nothing to fold to. */
+  const valueIndex = options.findIndex((o) => o.id === value);
 
   const visible = visibleSlots(options.length, top ? 'tabs' : mode, folded, activeIndex);
   const visibleCount = visible.filter(Boolean).length;
@@ -732,7 +744,7 @@ export function AdaptiveNav({
   const box =
     (spanning || top) && !wideTrack && indicator === 'capsule' ? { ...slotBox, w: Math.max(slotBox.w, pitch) } : slotBox;
   const capsuleX = useTransform(x, (v) => v + box.dx + (pitch - box.w) / 2);
-  const showCapsule = !wideTrack && !toolsInTrack && indicator !== 'lift';
+  const showCapsule = !wideTrack && !toolsInTrack && indicator !== 'lift' && marked;
   // The magnet only makes sense while every slot is where the arithmetic says.
   const magnet = showCapsule && scrubbing && !folded && !reduceMotion && !keyboardInput;
   const capsuleTransform = useTransform([capsuleX, scaleX, scaleY], ([position, sx, sy]: number[]) =>
@@ -785,7 +797,7 @@ export function AdaptiveNav({
       const velocity = commitScrub ? trailVelocity(p.trail, performance.now()) : 0;
       const idx = releaseTarget({
         held: x.get(), velocity, pitch, count: options.length,
-        selected: Math.max(0, options.findIndex((option) => option.id === value)),
+        selected: Math.max(0, valueIndex),
         cancelled: !commitScrub,
       });
       const target = idx * pitch;
@@ -808,8 +820,7 @@ export function AdaptiveNav({
     } else {
       // Restore even if the preview already equals value: there may be no
       // state change to trigger the selection effect after cancellation.
-      const selected = Math.max(0, options.findIndex((option) => option.id === value));
-      const target = indicatorOffset(visible, selected, pitch);
+      const target = indicatorOffset(visible, Math.max(0, valueIndex), pitch);
       destination.current = target;
       if (reduceMotion) x.jump(target);
       else animate(x, target, SELECTION_SPRING);
@@ -952,12 +963,7 @@ export function AdaptiveNav({
       }
       return;
     }
-    const i = options.findIndex((o) => o.id === value);
-    let next = -1;
-    if (e.key === 'ArrowRight') next = (i + 1) % options.length;
-    else if (e.key === 'ArrowLeft') next = (i - 1 + options.length) % options.length;
-    else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = options.length - 1;
+    const next = nextIndex(valueIndex, e.key, options.length);
     if (next < 0) return;
     e.preventDefault();
     onChange(options[next].id);
@@ -1231,6 +1237,7 @@ export function AdaptiveNav({
                 magnet={magnet}
                 hidden={!visible[i]}
                 isValue={isValue}
+                focusable={isValue || (valueIndex < 0 && i === 0)}
                 active={tab.id === activeId}
                 label={folded && isValue ? L.expandHint(tab.label) : tab.label}
                 labelled={showLabel}

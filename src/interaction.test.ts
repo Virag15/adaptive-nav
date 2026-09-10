@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { releaseTarget, scrubPosition, trailVelocity } from './interaction.ts';
+import { nextIndex, releaseTarget, scrubPosition, trailVelocity } from './interaction.ts';
 
 test('a held capsule follows each pixel inside the track and resists both edges', () => {
   assert.equal(scrubPosition(31, 52, 4), 31);
@@ -33,4 +33,16 @@ test('release projects real momentum, settles slow drags locally, and clamps end
   assert.equal(releaseTarget({ ...base, held: 104, velocity: -900 }), 1);
   assert.equal(releaseTarget({ ...base, held: 156, velocity: 3000 }), 3);
   assert.equal(releaseTarget({ ...base, held: 0, velocity: -3000 }), 0);
+});
+
+test('arrows wrap, and from no selection Right takes the first section and Left the last', () => {
+  assert.equal(nextIndex(-1, 'ArrowRight', 4), 0);
+  assert.equal(nextIndex(-1, 'ArrowLeft', 4), 3);
+  assert.equal(nextIndex(0, 'ArrowLeft', 4), 3);
+  assert.equal(nextIndex(3, 'ArrowRight', 4), 0);
+  assert.equal(nextIndex(1, 'ArrowRight', 4), 2);
+  assert.equal(nextIndex(-1, 'Home', 4), 0);
+  assert.equal(nextIndex(-1, 'End', 4), 3);
+  assert.equal(nextIndex(2, 'Enter', 4), -1);
+  assert.equal(nextIndex(-1, 'ArrowRight', 0), -1);
 });

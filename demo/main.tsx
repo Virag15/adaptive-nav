@@ -436,6 +436,7 @@ function Playground() {
   const [appItems, setAppItems] = useState(true);
   const [persist, setPersist] = useState(true);
   const [dots, setDots] = useState(false);
+  const [markPushed, setMarkPushed] = useState(false);
   const [dark, setDark] = useState(false);
   const [tone, setTone] = useState<ToneSetting>('auto');
   const [quality, setQuality] = useState<Quality>('auto');
@@ -642,6 +643,9 @@ function Playground() {
               <Switch id="dots" on={dots} onFlip={() => setDots((d) => !d)}>
                 Badges as dots, not counts
               </Switch>
+              <Switch id="marked" on={markPushed} onFlip={() => setMarkPushed((v) => !v)}>
+                Keep a section marked on pushed screens
+              </Switch>
             </div>
           </Section>
 
@@ -654,7 +658,7 @@ function Playground() {
       <AdaptiveNav
         mode={mode}
         options={dots ? DOT_TABS : TABS}
-        value={tab}
+        value={markPushed || mode === 'tabs' || mode === 'hidden' ? tab : undefined}
         indicator={indicator}
         tone={tone}
         quality={quality}

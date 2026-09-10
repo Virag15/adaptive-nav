@@ -164,7 +164,7 @@ tap or arrow key then calls `onExpand` instead of switching.
 | `mode`      | `'tabs' \| 'context' \| 'buy'` |                                                              |
 | `options`   | `TabOption[]`                 | `{ id, label, Icon, badge? }` — icon-only, `label` is read aloud |
 | `trailing`  | `NavAction[]`                 | the app's own items on the band's trailing edge, in every mode |
-| `value`     | `string`                      | selected tab id                                              |
+| `value`     | `string`                      | the current section's id; omit it for none — see below       |
 | `onChange`  | `(id) => void`                | on a pushed screen the current tab fires too (it is a way home) |
 | `onBack`    | `() => void`                  | Back circle                                                  |
 | `action`    | `NavAction`                   | `{ id, label, Icon, badge?, active?, onPress }`; change `id` to crossfade |
@@ -222,6 +222,20 @@ guideline's *Item groupings* section orders a toolbar:
 | `select`  | Close, the count  | the action; Done, prominent               |
 | `confirm` | Close, title      | Cancel, quiet; the primary, prominent     |
 | `hidden`  | slides off the top edge                                       |
+
+On a pushed screen the screen showing is usually not one of the sections, and
+a lit indicator on the one the person came from reads as a button that means
+nothing there. `value` is optional, and an id no section has means the same:
+
+```tsx
+<AdaptiveNav mode={mode} options={tabs} value={pushed ? undefined : tab} onChange={go} />
+```
+
+Then no section is marked — no indicator, every glyph muted, `aria-selected`
+false on all of them — and every section is still tappable as a way out. The
+keyboard still reaches the row: the roving tabindex rests on the first
+section, Right takes the first and Left the last. `minimized` needs a section
+to fold to, so it does nothing while none is current.
 
 Whatever the mode, `trailing` and a persistent field are there as well.
 

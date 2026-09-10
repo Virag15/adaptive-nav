@@ -34,3 +34,23 @@ export function releaseTarget({ held, velocity, pitch, count, selected, cancelle
   if (cancelled || pitch <= 0 || count <= 1) return selected;
   return Math.min(count - 1, Math.max(0, Math.round((held + project(velocity)) / pitch)));
 }
+
+/**
+ * Where an arrow, Home or End key moves the selection, wrapping at both ends.
+ * `current` is -1 when no section is the current one — a pushed screen — and
+ * from there Right lands on the first section and Left on the last, rather
+ * than one short of it. Returns -1 for a key that means nothing here.
+ *
+ * Input: (-1, 'ArrowLeft', 4)   Output: 3
+ * Input: (0, 'ArrowLeft', 4)    Output: 3
+ * Input: (3, 'ArrowRight', 4)   Output: 0
+ */
+export function nextIndex(current: number, key: string, count: number): number {
+  if (count < 1) return -1;
+  const from = current < 0 ? (key === 'ArrowRight' ? -1 : count) : current;
+  if (key === 'ArrowRight') return (from + 1) % count;
+  if (key === 'ArrowLeft') return (from - 1 + count) % count;
+  if (key === 'Home') return 0;
+  if (key === 'End') return count - 1;
+  return -1;
+}
