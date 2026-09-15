@@ -397,6 +397,55 @@ difference will show on a mid-range Android, which is where `auto` earns its
 keep. Every animated property is a transform, an opacity or a filter, except
 the pill's width, which lays out.
 
+## Moving with the page
+
+A change of screen is one movement: the pill takes its new shape, the capsule
+takes its new section, and the page arrives under them. Left to itself the
+page runs a different curve on a different clock, and the pair reads as two
+movements. Driven with real taps on a production build of a catalogue app,
+the page's own 300/420ms tween landed up to 180ms from the bar's springs, and
+the bar reached halfway two or three frames ahead of the page.
+
+`enterScreen` animates the arriving screen on the bar's own route spring:
+
+```tsx
+import { enterScreen } from '@virag/adaptive-nav';
+
+// direction: 1 pushed, -1 popped, 0 a change of section.
+useLayoutEffect(() => {
+  const move = enterScreen(document.querySelector(`[data-screen="${key}"]`), {
+    direction,
+    skip: prefersReducedMotion || cameFromKeyboard,
+  });
+  return () => move?.cancel();
+}, [key]);
+```
+
+Two things make it one movement. The curve is the same: `ROUTE_CURVE` is the
+bar's route spring (`ROUTE_SPRING`, the shape spring) sampled into a CSS
+`linear()` easing by `springCurve`, so the Web Animations API runs exactly
+what Motion runs — on the compositor, where a busy main thread cannot stall
+it, and the first frame of a new screen is the busiest the main thread gets.
+And the instant is the same: Motion times a spring from the moment it is
+created, inside the commit, where a WAAPI animation's clock would start at the
+next frame instead, so `enterScreen` sets `startTime` to the moment of
+creation. `routeEasing()` is the easing on its own, for a CSS transition that
+has to match; it falls back to a strong ease-out of the same length where
+`linear()` is missing (before Chrome 113, Safari 17.2, Firefox 112).
+
+`transitionKey` is the other half. Give the bar a value that changes with the
+screen, and it holds its backdrop sampling until the move has settled: reading
+the page's tone means reading a dozen points through `elementsFromPoint` and
+drawing images into a canvas, which was the largest single cost of the frame a
+phone dropped at the start of a move, and a page still sliding in has no
+settled tone to read anyway.
+
+The bar can only be as smooth as the screen it sits on. What the same work
+found outside this package, in the app: keep a section mounted and hidden
+rather than rebuilding it on every return, build the other sections while the
+browser is idle, skip laying out what is off screen, and never read an
+element's box after every render.
+
 ## Gestures
 
 A tap highlights on pointer-down — the indicator swells a little and lights
