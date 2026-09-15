@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { ROUTE_CURVE } from './springs';
 import {
   colorsIn,
   lightness,
@@ -151,6 +152,7 @@ function lightnessAt(x: number, y: number, skip: Element): number | null {
 export function useBackdropTone(root: RefObject<HTMLElement | null>, setting: ToneSetting, key: string): Tone {
   const [auto, setAuto] = useState<Tone>('light');
   const current = useRef<Tone>('light');
+  const first = useRef(true);
 
   useEffect(() => {
     if (setting !== 'auto') return;
@@ -180,16 +182,27 @@ export function useBackdropTone(root: RefObject<HTMLElement | null>, setting: To
         setAuto(next);
       }
     };
+    // A new key after the first is a change of screen or of the bar's shape,
+    // and both are moving for the next ROUTE_CURVE.duration. A sample reads the
+    // DOM at a dozen points and draws images into a canvas; landing in the
+    // first frames of that move it was the largest single cost of the frame a
+    // phone dropped. A page still sliding in has no settled tone to read
+    // anyway, so the bar keeps the one it has until the move is over. The
+    // scroll a screen change restores is part of the move and waits too.
+    const hold = first.current ? 0 : ROUTE_CURVE.duration;
+    first.current = false;
+    const quietUntil = performance.now() + hold;
     const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(sample);
+      if (!frame && performance.now() >= quietUntil) frame = requestAnimationFrame(sample);
     };
 
-    schedule();
+    const settled = setTimeout(schedule, hold);
     document.addEventListener('scroll', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule);
     const timer = setInterval(schedule, TIMER_MS);
     return () => {
       if (frame) cancelAnimationFrame(frame);
+      clearTimeout(settled);
       document.removeEventListener('scroll', schedule, true);
       window.removeEventListener('resize', schedule);
       clearInterval(timer);

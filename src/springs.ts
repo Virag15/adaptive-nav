@@ -14,6 +14,52 @@ export const STRETCH_SPRING = { stiffness: 700, damping: 53, mass: 1 } as const;
  * ratio is still 1, so it gains speed without gaining a wobble.
  */
 export const SHAPE_SPRING = { type: 'spring', stiffness: 700, damping: 53, mass: 1 } as const;
+
+/**
+ * A spring's path from rest to rest as a CSS `linear()` easing, and how long it
+ * takes to come within 0.1% of the end. The bar moves on Motion's springs; a
+ * page that has to move with it can hand the same curve to the Web Animations
+ * API, which runs it on the compositor, where a busy main thread cannot stall
+ * it. Two clocks on one curve start and land together; two curves never do.
+ *
+ * Input: (SHAPE_SPRING)
+ * Output: { duration: 351, easing: 'linear(0, 0.0231, 0.0796, 0.1545, …, 1)' }
+ */
+export function springCurve(spring: { stiffness: number; damping: number; mass: number }, stops = 40) {
+  const w0 = Math.sqrt(spring.stiffness / spring.mass);
+  const zeta = spring.damping / (2 * Math.sqrt(spring.stiffness * spring.mass));
+  // Zero initial velocity, from 0 to 1: the three closed forms of a damped oscillator.
+  const at = (t: number): number => {
+    if (Math.abs(zeta - 1) < 1e-6) return 1 - (1 + w0 * t) * Math.exp(-w0 * t);
+    if (zeta < 1) {
+      const wd = w0 * Math.sqrt(1 - zeta * zeta);
+      return 1 - Math.exp(-zeta * w0 * t) * (Math.cos(wd * t) + ((zeta * w0) / wd) * Math.sin(wd * t));
+    }
+    const s = Math.sqrt(zeta * zeta - 1);
+    const r1 = -w0 * (zeta - s);
+    const r2 = -w0 * (zeta + s);
+    return 1 - (r2 * Math.exp(r1 * t) - r1 * Math.exp(r2 * t)) / (r2 - r1);
+  };
+  // Walk back from two seconds to the last moment it was still visibly short of rest.
+  let settle = 0;
+  for (let t = 2; t > 0; t -= 0.001) {
+    if (Math.abs(1 - at(t)) > 0.001) {
+      settle = t + 0.001;
+      break;
+    }
+  }
+  const points = Array.from({ length: stops + 1 }, (_, i) => (i === stops ? 1 : Number(at((settle * i) / stops).toFixed(4))));
+  return { duration: Math.round(settle * 1000), easing: `linear(${points.join(', ')})` };
+}
+
+/**
+ * A change of screen: the pill's new shape, the capsule's new section and the
+ * page arriving under them. One spring for all three, so what the eye reads as
+ * one movement is one — the page used to take 420ms on its own tween while the
+ * capsule took ~430ms on a softer spring and the pill ~280ms, three landings.
+ */
+export const ROUTE_SPRING = SHAPE_SPRING;
+export const ROUTE_CURVE = springCurve(ROUTE_SPRING);
 // Satellites share the same calm settle instead of adding another bounce.
 export const EMERGE_SPRING = { type: 'spring', stiffness: 400, damping: 40, mass: 1 } as const;
 export const RETREAT_SPRING = { type: 'spring', stiffness: 600, damping: 49, mass: 1 } as const;

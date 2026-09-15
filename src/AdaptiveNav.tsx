@@ -45,6 +45,7 @@ import {
   GLYPH,
   PRESS_SPRING,
   RELEASE_SPRING,
+  ROUTE_SPRING,
   SECTION_SLIDE_MS,
   SECTION_STAGGER,
   SELECTION_SPRING,
@@ -122,6 +123,12 @@ export type AdaptiveNavProps = {
    * glass with white ink over dark content; a tone pins it.
    */
   tone?: ToneSetting;
+  /**
+   * Changes whenever the screen under the bar changes. The bar moves with the
+   * screen for one route spring, and reads the page's tone only once both have
+   * settled, since a page still arriving has no tone to read.
+   */
+  transitionKey?: string;
   /**
    * How much of the lens the device is asked for. `auto` reads the device;
    * `edges` bends the pill's rim only; `off` is frost, tint and shine alone.
@@ -472,6 +479,7 @@ export function AdaptiveNav({
   glass,
   indicator = 'capsule',
   tone: toneSetting = 'auto',
+  transitionKey = '',
   quality = 'auto',
   labels,
   backIcon,
@@ -811,13 +819,14 @@ export function AdaptiveNav({
       return;
     }
     if (destination.current === capsuleTarget) return;
-    // Two different moves share this one value. Answering a selection is the
-    // calm one people scrub against; riding a cell that changed width under it
-    // is the band reshaping, and it should be over as fast as the rest of it.
-    const selecting = markedIndex.current !== activeIndex;
+    // A committed section is a change of screen, whether a tap chose it or the
+    // band reshaped under it, and the page arrives on the route spring. On the
+    // softer selection spring the capsule landed ~180ms after the page it
+    // answered. A scrub's own release still carries the finger's velocity; it
+    // is started where the finger lets go, not here.
     destination.current = capsuleTarget;
     markedIndex.current = activeIndex;
-    animate(x, capsuleTarget, selecting ? SELECTION_SPRING : SHAPE_SPRING);
+    animate(x, capsuleTarget, ROUTE_SPRING);
   }, [capsuleTarget, activeIndex, scrubbing, x, reduceMotion, keyboardInput]);
 
   // Speed becomes shape: the capsule lengthens along its travel and thins to
@@ -1098,7 +1107,7 @@ export function AdaptiveNav({
   // Which way the bar faces. Over dark content the material itself flips to
   // its dark base; a bar with its own `glass` writes the tokens inline, so the
   // flip has to happen here rather than in the stylesheet's tone rule.
-  const tone = useBackdropTone(rootRef, toneSetting, `${mode}:${width}:${vw}`);
+  const tone = useBackdropTone(rootRef, toneSetting, `${mode}:${width}:${vw}:${transitionKey}`);
   const material = tone === 'dark' ? { ...g, base: g.baseDark } : g;
 
   const badgeText = (badge?: NavBadge) =>

@@ -25,3 +25,4 @@ export { useEnvironment } from './useEnvironment';
 export { REGULAR_MIN, TOP_METRICS, TOP_POINTER_METRICS, TOP_TOUCH_METRICS, resolvePlacement } from './placement';
 export type { Placement, PlacementSetting } from './placement';
 export { usePlacement } from './usePlacement';
+export { ROUTE_CURVE, ROUTE_SPRING, springCurve } from './springs';
