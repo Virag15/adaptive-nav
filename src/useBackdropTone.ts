@@ -71,27 +71,56 @@ function toRgba(css: string): RGBA | null {
 }
 
 const thumbs = new Map<string, ImageData | null>();
+const pendingThumbs = new Set<string>();
 
-/** The image's colour at a point, or undefined when it cannot be read (tainted, not loaded). */
+/** An image drawn down to THUMB square and read back, or null when the canvas is tainted. */
+function readThumb(source: CanvasImageSource): ImageData | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = THUMB;
+    canvas.height = THUMB;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(source, 0, 0, THUMB, THUMB);
+    return ctx.getImageData(0, 0, THUMB, THUMB);
+  } catch {
+    // Cross-origin without CORS: the canvas is tainted and will not say.
+    return null;
+  }
+}
+
+function keepThumb(key: string, data: ImageData | null) {
+  if (thumbs.size > 100) thumbs.clear();
+  thumbs.set(key, data);
+}
+
+/** The image's colour at a point, or undefined when it cannot be read (tainted, not loaded, still shrinking). */
 function imageColor(img: HTMLImageElement, x: number, y: number): RGBA | undefined {
   if (!img.complete || !img.naturalWidth) return undefined;
   const key = img.currentSrc || img.src;
   let data = thumbs.get(key);
   if (data === undefined) {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = THUMB;
-      canvas.height = THUMB;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return undefined;
-      ctx.drawImage(img, 0, 0, THUMB, THUMB);
-      data = ctx.getImageData(0, 0, THUMB, THUMB);
-    } catch {
-      // Cross-origin without CORS: the canvas is tainted and will not say.
-      data = null;
+    // Drawing a photograph down to 24px decodes all of it, and on the main
+    // thread that was 30ms of a 65ms frame at 6x CPU, landing as a screen's
+    // move ended. createImageBitmap shrinks it off the main thread; this
+    // sample reads nothing for the image and the next one reads its thumb.
+    if (typeof createImageBitmap === 'function') {
+      if (!pendingThumbs.has(key)) {
+        pendingThumbs.add(key);
+        createImageBitmap(img, { resizeWidth: THUMB, resizeHeight: THUMB, resizeQuality: 'low' })
+          .then(
+            (bitmap) => {
+              keepThumb(key, readThumb(bitmap));
+              bitmap.close();
+            },
+            () => keepThumb(key, null),
+          )
+          .finally(() => pendingThumbs.delete(key));
+      }
+      return undefined;
     }
-    if (thumbs.size > 100) thumbs.clear();
-    thumbs.set(key, data);
+    data = readThumb(img);
+    keepThumb(key, data);
   }
   if (!data) return undefined;
   const r = img.getBoundingClientRect();
