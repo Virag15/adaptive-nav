@@ -15,6 +15,7 @@ import {
   animate,
   motion,
   useMotionValue,
+  useMotionValueEvent,
   useReducedMotion,
   useSpring,
   useTransform,
@@ -189,6 +190,8 @@ const SSR_VIEWPORT = 393;
 /** Velocity, in px/s, at which the travelling indicator reaches its full stretch. */
 const STRETCH_AT = 2000;
 const STRETCH_MAX = 0.04;
+/** Speed, in px/s, above which the capsule counts as travelling and turns to clear glass. */
+const MOVING_AT = 60;
 /** The swell of a pressed bubble. */
 const PRESS_SCALE = 1.02;
 /**
@@ -541,8 +544,7 @@ export function AdaptiveNav({
   const pillLens = bends && rendition.pill;
   const circleLens = bends && rendition.circles;
   /** Only the travelling capsule is a bubble; a dot or a glow has no lip to bend at. */
-  // A cell wider than the slot gets a rounded indicator, not a disc; the bubble's lens map is a disc, so it sits this out there.
-  const bubbleLens = pillLens && rendition.bubble && indicator === 'capsule' && !(spanning && !wide) && !top;
+  const bubbleLens = pillLens && rendition.bubble && indicator === 'capsule' && !top;
   const dispersion = rendition.dispersion ? g.dispersion : 0;
   // url(#…) cannot carry the punctuation React puts around its ids.
   const filterId = 'anav-' + useId().replace(/[^\w-]/g, '');
@@ -833,6 +835,14 @@ export function AdaptiveNav({
   // keep its area, so a fast pass reads as motion rather than a strobe of
   // positions. The small deformation settles without a second wobble.
   const velocity = useVelocity(x);
+  // In flight the capsule is a clear drop, so its lens shows what it passes
+  // over; at rest it is the lighter bubble that marks the section. Written to
+  // the DOM, not state: it flips twice a travel and must not re-render the bar.
+  useMotionValueEvent(velocity, 'change', (v) => {
+    const el = rootRef.current;
+    const moving = Math.abs(v) > MOVING_AT;
+    if (el && moving !== el.hasAttribute('data-moving')) el.toggleAttribute('data-moving', moving);
+  });
   const rawStretch = useTransform(velocity, (v) =>
     reduceMotion || keyboardInput ? 1 : 1 + Math.min(Math.abs(v) / STRETCH_AT, 1) * STRETCH_MAX,
   );
@@ -1560,7 +1570,7 @@ export function AdaptiveNav({
           height={sat}
           circle={sat}
           circles={circleLens}
-          capsule={bubbleLens ? box.w : 0}
+          capsule={bubbleLens ? { w: box.w, h: box.h } : null}
           blur={g.blur}
           saturate={g.saturate}
           refraction={g.refraction}

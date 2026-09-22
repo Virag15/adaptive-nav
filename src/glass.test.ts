@@ -41,3 +41,14 @@ test('the composites agree with the knobs that feed them', () => {
   // Every token is namespaced so a host stylesheet cannot collide with it.
   for (const k of Object.keys(vars)) assert.match(k, /^--anav-/);
 });
+
+test('nothing in the stylesheet isolates the glass from the page behind it', async () => {
+  // A blend mode or an isolated group puts the pill in a group of its own, and
+  // a backdrop filter inside one reads only that group: every blur and lens in
+  // the bar went blank with no error, and the page showed through sharp.
+  const { readFile } = await import('node:fs/promises');
+  const css = (await readFile(new URL('./adaptive-nav.css', import.meta.url), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+  const blends = [...css.matchAll(/mix-blend-mode\s*:\s*([^;}]+)/g)].map((m) => m[1].trim()).filter((v) => v !== 'normal');
+  assert.deepEqual(blends, [], 'mix-blend-mode in adaptive-nav.css');
+  assert.doesNotMatch(css, /isolation\s*:\s*isolate/, 'isolation: isolate in adaptive-nav.css');
+});

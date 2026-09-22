@@ -49,6 +49,9 @@
     transparent
   );
   --anav-indicator-solid: rgb(120 120 128 / 0.14);
+  /* The indicator in flight: nearly clear, so the lens under it reads. */
+  --anav-indicator-moving: color-mix(in srgb, var(--anav-glass-base) 14%, transparent);
+  --anav-indicator-moving-dark: rgb(255 255 255 / 0.07);
   /* Buy mode's call to action. */
   --anav-accent: #5433eb;
   --anav-accent-fg: #fff;
@@ -136,6 +139,7 @@
   --anav-fg: var(--anav-fg-dark);
   --anav-fg-muted: var(--anav-fg-muted-dark);
   --anav-indicator: var(--anav-indicator-dark);
+  --anav-indicator-moving: var(--anav-indicator-moving-dark);
   --anav-solid: var(--anav-solid-dark);
 }
 
@@ -211,15 +215,19 @@
 }
 
 /* The light that gets into the slab: broad and soft, from above and, fainter,
-   from below, blended soft-light so it lifts what is beneath rather than
-   painting over it — brighter over light content, a glint over dark. Where a
-   lens is bending for real it steps back; the bend already says thick. */
+   from below. Where a lens is bending for real it steps back; the bend
+   already says thick.
+   Painted, never blended. A mix-blend-mode here made Chrome isolate the pill
+   (and each circle) into a group of its own, and a backdrop filter inside an
+   isolated group reads only that group: every blur and every lens in the bar
+   saw nothing and the page showed through sharp. The strengths are what
+   soft-light gave over white, about 0.4 of the old alphas. glass.test.ts
+   fails on any blend mode in this file. */
 .anav__edge {
   z-index: 3;
   box-shadow:
-    inset 0 10px 16px -7px rgb(255 255 255 / calc(0.55 * var(--anav-rim))),
-    inset 0 -8px 14px -6px rgb(255 255 255 / calc(0.3 * var(--anav-rim)));
-  mix-blend-mode: soft-light;
+    inset 0 10px 16px -7px rgb(255 255 255 / calc(0.22 * var(--anav-rim))),
+    inset 0 -8px 14px -6px rgb(255 255 255 / calc(0.12 * var(--anav-rim)));
   transition: transform 160ms var(--anav-ease), opacity 300ms var(--anav-ease);
 }
 .anav[data-pill-lens] .anav__edge--pill,
@@ -308,6 +316,13 @@
   will-change: transform;
   transition: background-color 300ms var(--anav-ease);
 }
+/* Travelling or held under a finger, the bubble clears to a drop and the lens
+   takes over; it clears fast and fills back slower, once it has landed. */
+.anav[data-moving] .anav__capsule,
+.anav[data-scrub] .anav__capsule {
+  background: var(--anav-indicator-moving);
+  transition-duration: 120ms;
+}
 .anav__refract--capsule {
   position: absolute;
   inset: 0;
@@ -368,7 +383,9 @@
 }
 /* Labelled: the glyph gives up a little height and the name sits under it. */
 .anav[data-labelled] .anav__btn { align-content: center; row-gap: 1px; }
-.anav[data-labelled] .anav__magnet { row-gap: 1px; }
+/* The magnet takes the slot's width. Sized by its content, it gave the label
+   a max-width of its own width less 4px, so every name lost its last letters. */
+.anav[data-labelled] .anav__magnet { row-gap: 1px; width: 100%; }
 .anav[data-labelled] .anav__glyph { width: 22px; height: 22px; }
 .anav[data-labelled] .anav__btn svg { width: 22px; height: 22px; }
 .anav__label {

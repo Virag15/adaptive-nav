@@ -134,10 +134,10 @@ function Glass({
 }
 
 /** A bend alone, for the bubble: what is under it is already frosted by the pill. */
-function Lens({ id, map, size, scale }: { id: string; map: string; size: number; scale: number }) {
+function Lens({ id, map, width, height, scale }: { id: string; map: string; width: number; height: number; scale: number }) {
   return (
     <filter id={id} x="0" y="0" width="1" height="1" colorInterpolationFilters="sRGB">
-      <feImage href={map} x="0" y="0" width={size} height={size} preserveAspectRatio="none" result="map" />
+      <feImage href={map} x="0" y="0" width={width} height={height} preserveAspectRatio="none" result="map" />
       <Bend scale={scale} dispersion={0} result="out" />
     </filter>
   );
@@ -169,8 +169,12 @@ export function GlassFilters({
   circle: number;
   /** Whether the circles get the merged filter at all. */
   circles: boolean;
-  /** Diameter of the bubble's lens, or 0 for none. */
-  capsule: number;
+  /**
+   * The bubble's lens at the bubble's own size, or null for none. A disc in a
+   * compact pill; in a spanning pill the bubble is its cell, wider than tall,
+   * and the map is a capsule of that shape so it bends at the lip all round.
+   */
+  capsule: { w: number; h: number } | null;
   blur: number;
   saturate: number;
   refraction: number;
@@ -179,7 +183,9 @@ export function GlassFilters({
 }) {
   const pillMap = useMemo(() => mapUrl(width, height), [width, height]);
   const discMap = useMemo(() => (circles ? mapUrl(circle, circle) : ''), [circles, circle]);
-  const capMap = useMemo(() => (capsule > 0 ? mapUrl(capsule, capsule) : ''), [capsule]);
+  const capW = capsule?.w ?? 0;
+  const capH = capsule?.h ?? 0;
+  const capMap = useMemo(() => (capW > 0 && capH > 0 ? mapUrl(capW, capH) : ''), [capW, capH]);
   return (
     <svg className="anav__filters" aria-hidden="true" focusable="false" width="0" height="0">
       <defs>
@@ -207,8 +213,9 @@ export function GlassFilters({
             dispersion={0}
           />
         )}
-        {capsule > 0 && (
-          <Lens id={`${id}-capsule`} map={capMap} size={capsule} scale={lensFor(capsule, refraction).scale} />
+        {capW > 0 && capH > 0 && (
+          // The rim band scales with the height, as the pill's does, so a wide bubble bends as deep as a disc of its height.
+          <Lens id={`${id}-capsule`} map={capMap} width={capW} height={capH} scale={lensFor(capH, refraction).scale} />
         )}
       </defs>
     </svg>
