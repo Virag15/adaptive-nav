@@ -7,7 +7,10 @@ import {
   indicatorOffset,
   isWide,
   pillWidth,
+  MIN_HIT,
+  solveFillSlot,
   solveSlot,
+  spanWidth,
   visibleSlots,
 } from './geometry.ts';
 
@@ -37,6 +40,30 @@ test('the full cluster — tabs, two circles, gaps — always fits inside the ed
 
 test('a degenerate viewport never yields a negative slot', () => {
   assert.equal(solveSlot(0, 4, DEFAULT_METRICS), 0);
+  assert.equal(solveFillSlot(0, 4, DEFAULT_METRICS), 0);
+});
+
+test('a spanning pill keeps its preferred height where solveSlot would have cut it', () => {
+  const m = { ...DEFAULT_METRICS, slot: 62, pad: 2, buyInset: 6 };
+  // The circles solveSlot reserves are never beside a spanning pill in tabs mode.
+  assert.ok(solveSlot(393, 5, m) < 62);
+  assert.equal(solveFillSlot(393, 5, m), 62);
+  assert.equal(solveFillSlot(320, 5, m), 62);
+  assert.equal(solveFillSlot(260, 5, m), 12);
+});
+
+test('every section of a spanning pill stays at or above the hit floor, Back out', () => {
+  for (const slot of [46, 62, 72])
+    for (const pad of [2, 4, 7])
+      for (const vw of [280, 320, 360, 393, 430])
+        for (const tabs of [3, 4, 5]) {
+          const m = { ...DEFAULT_METRICS, slot, pad, buyInset: 6 };
+          const s = solveFillSlot(vw, tabs, m);
+          if (s === 0) continue;
+          const sat = s + pad * 2;
+          const pitch = (spanWidth(vw, sat, 1, m) - pad * 2) / tabs;
+          assert.ok(pitch >= MIN_HIT, `${vw}px, ${tabs} tabs, slot ${s}: pitch ${pitch}`);
+        }
 });
 
 test('capsule rule: outer radius is half the height, inner is concentric and floored at zero', () => {

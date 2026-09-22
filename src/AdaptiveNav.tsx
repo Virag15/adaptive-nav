@@ -33,6 +33,7 @@ import {
   indicatorOffset,
   isWide,
   pillWidth,
+  solveFillSlot,
   solveSlot,
   spanWidth,
   type IndicatorStyle,
@@ -200,6 +201,13 @@ const PRESS_SCALE = 1.02;
  */
 const MAGNET_PX = 4;
 const MAGNET_SCALE = 0.015;
+/**
+ * The lens in flight: a glyph under the travelling drop swells by up to this
+ * much at full speed and settles back as the drop lands. It is what reads as
+ * refraction where the browser cannot bend the backdrop (WebKit), and it rides
+ * along with the backdrop lens where it can.
+ */
+const LENS_SCALE = 0.16;
 /** Air either side of a glyph and its name in a regular-width cell. */
 const TOP_TAB_PAD = 14;
 /** A regular-width cell before the names have been measured. */
@@ -380,6 +388,7 @@ function Tab({
   pitch,
   x,
   magnet,
+  lens,
   hidden,
   isValue,
   focusable,
@@ -400,6 +409,8 @@ function Tab({
   pitch: number;
   x: MotionValue<number>;
   magnet: boolean;
+  /** How fast the drop is travelling, 0 at rest to 1 at full stretch. */
+  lens: MotionValue<number>;
   hidden: boolean;
   isValue: boolean;
   /** Which tab the roving tabindex rests on; the current one, or the first when none is. */
@@ -419,10 +430,11 @@ function Tab({
     const d = (v - index * pitch) / pitch;
     return Math.abs(d) >= 1 ? 0 : MAGNET_PX * d * (1 - Math.abs(d));
   });
-  const swell = useTransform(x, (v) => {
-    if (!magnet) return 1;
+  const swell = useTransform([x, lens], ([v, speed]: number[]) => {
     const d = Math.abs(v - index * pitch) / pitch;
-    return d >= 1 ? 1 : 1 + MAGNET_SCALE * (1 - d) * (1 - d);
+    if (d >= 1) return 1;
+    const near = (1 - d) * (1 - d);
+    return 1 + (magnet ? MAGNET_SCALE * near : 0) + LENS_SCALE * speed * near;
   });
   const magnetTransform = useTransform([pull, swell], ([position, scale]: number[]) =>
     `translateX(${position}px) scale(${scale})`,
@@ -553,7 +565,12 @@ export function AdaptiveNav({
   // narrow phones; both need the viewport width. A toolbar with more tools
   // than there are tabs has to fit too.
   const vw = useViewportWidth();
-  const slot = solveSlot(vw, Math.max(options.length, tools?.length ?? 0), m);
+  // A pill that spans the screen divides its width among the sections, so its
+  // height is free of the width fit that a hugging pill and its circles need.
+  const slot =
+    fill && !top && !toolbar
+      ? solveFillSlot(vw, options.length, m)
+      : solveSlot(vw, Math.max(options.length, tools?.length ?? 0), m);
   /** Satellites match the pill's outer height, so their arcs share its radius. */
   const sat = slot + m.pad * 2;
   // The glass needs a box-shadow and a backdrop blur, which a clip-path cannot
@@ -857,6 +874,9 @@ export function AdaptiveNav({
     }
   }, [pressed, reduceMotion, keyboardInput, scale, stretch]);
   const scaleX = useTransform([scale, stretch], ([s, st]: number[]) => s * st);
+  // The stretch already is speed, sprung so it settles without a second
+  // wobble; read as 0–1 it drives the lens the glyphs pass under.
+  const lens = useTransform(stretch, (st) => Math.min(1, Math.max(0, (st - 1) / STRETCH_MAX)));
   const scaleY = useTransform([scale, stretch], ([s, st]: number[]) => s / Math.sqrt(st));
   const slotBox = indicatorBox(indicator, slot, m.pad);
   // In a spanning pill the capsule is its cell: the same width, so at either
@@ -1394,6 +1414,7 @@ export function AdaptiveNav({
                 pitch={pitch}
                 x={x}
                 magnet={magnet}
+                lens={lens}
                 hidden={!visible[i]}
                 isValue={isValue}
                 focusable={isValue || (valueIndex < 0 && i === 0)}

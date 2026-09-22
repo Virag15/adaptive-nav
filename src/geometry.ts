@@ -49,6 +49,27 @@ export function solveSlot(viewportWidth: number, tabCount: number, m: NavMetrics
   return Math.max(0, Math.min(m.slot, fit));
 }
 
+/** The guideline's floor for a hit region, in px. */
+export const MIN_HIT = 44;
+
+/**
+ * The slot of a spanning pill. `solveSlot` makes room for a satellite at each
+ * end, but a pill that spans the screen shares its width among the sections,
+ * so its height is no longer what has to fit: the sections are. The slot is
+ * the preferred one unless that would squeeze a section below the 44px hit
+ * floor with Back out beside the pill, the narrowest the spanning pill gets.
+ *
+ * Input: (393, 5, { ...DEFAULT_METRICS, slot: 62, pad: 2, buyInset: 6 })  Output: 62
+ * Input: (320, 5, { ...DEFAULT_METRICS, slot: 62, pad: 2, buyInset: 6 })  Output: 62
+ * Input: (260, 5, { ...DEFAULT_METRICS, slot: 62, pad: 2, buyInset: 6 })  Output: 12
+ */
+export function solveFillSlot(viewportWidth: number, tabCount: number, m: NavMetrics): number {
+  // Pitch with Back out: (span − 2·buyInset − (slot + 2·pad + gap) − 2·pad) / n ≥ MIN_HIT.
+  const span = Math.min(viewportWidth, m.buyMaxWidth);
+  const fit = Math.floor(span - m.buyInset * 2 - m.pad * 4 - m.gap - MIN_HIT * Math.max(1, tabCount));
+  return Math.max(0, Math.min(m.slot, fit));
+}
+
 /**
  * One rule for every curve in the bar. The pill is a capsule, so its radius is
  * half its height; the satellites are circles of that same height, so they share
