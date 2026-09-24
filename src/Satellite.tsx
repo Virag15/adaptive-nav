@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
-import { FADE_OUT, SECTION_IN, SECTION_OUT } from './springs';
+import { FADE_IN, FADE_OUT, ROUTE_SPRING, SECTION_IN, SECTION_OUT } from './springs';
 
 /**
  * A glass body that lives just outside one end of the pill: a circle, or at
@@ -46,6 +46,13 @@ export function Satellite({
   children: ReactNode;
 }) {
   const out = 'translateX(0px) scaleX(1) scaleY(1)';
+  // A circle comes out of the pill as the pill makes room for it, so it
+  // travels on the pill's own spring — the route spring, which the page
+  // arriving with it rides too. On a 180ms tween it had landed before the
+  // pill finished shrinking, and read as a second, earlier movement.
+  // Sections in a regular-width band keep their staggered arrival.
+  const travel = group ? { ...SECTION_IN, delay } : { transform: { ...ROUTE_SPRING, delay }, opacity: { ...FADE_IN, delay } };
+  const retreat = group ? { transform: SECTION_OUT, opacity: FADE_OUT } : { transform: ROUTE_SPRING, opacity: FADE_OUT };
   const tucked = reduce
     ? out
     : `translateX(${side === 'leading' ? tuck : -tuck}px) scaleX(0.95) scaleY(0.8)`;
@@ -58,12 +65,12 @@ export function Satellite({
       animate={{
         opacity: 1,
         transform: out,
-        transition: reduce ? { duration: 0 } : { ...SECTION_IN, delay },
+        transition: reduce ? { duration: 0 } : travel,
       }}
       exit={{
         opacity: 0,
         transform: tucked,
-        transition: reduce ? { duration: 0 } : { transform: SECTION_OUT, opacity: FADE_OUT },
+        transition: reduce ? { duration: 0 } : retreat,
       }}
     >
       {/* Siblings of the content, not children: a backdrop filter only sees what

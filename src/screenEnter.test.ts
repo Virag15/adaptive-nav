@@ -34,13 +34,16 @@ test('a push comes in from the side it is going, a section change settles downwa
   assert.equal(section.calls[0].keyframes[1].opacity, 1);
 });
 
-test('the page runs the bar’s route curve, started at the moment it was created', () => {
+test('the page runs the bar’s route curve, and starts on the next frame as the springs do', () => {
   const el = fakeElement();
-  const before = performance.now();
   enterScreen(el, { direction: 1 });
   assert.equal(el.calls[0].options.duration, ROUTE_CURVE.duration);
   assert.equal(el.calls[0].options.easing, routeEasing());
-  assert.ok(el.animation.startTime !== null && el.animation.startTime >= before);
+  // Not pinned: a web animation left pending starts on the next frame's time,
+  // Motion's springs on their first frame. Pinning it put the page a frame off.
+  assert.equal(el.animation.startTime, null);
+  // Held at its first keyframe until then, so it never shows at rest first.
+  assert.equal(el.calls[0].options.fill, 'backwards');
 });
 
 test('reduced motion, a missing element or an engine without animations get no entrance', () => {
