@@ -824,6 +824,20 @@ export function AdaptiveNav({
 
   const capsuleTarget = indicatorOffset(visible, activeIndex, pitch);
   const x = useMotionValue(capsuleTarget);
+  const slotBox = indicatorBox(indicator, slot, m.pad);
+  // In a spanning pill the capsule is its cell: the same width, so at either
+  // end it sits the pad from the pill's edge on every side, concentric with
+  // the pill's own corner, the way the disc is in a compact pill. A dot or a
+  // glow keeps its size. Either way it sits centred in the cell.
+  const box =
+    (spanning || top) && !wideTrack && indicator === 'capsule' ? { ...slotBox, w: Math.max(slotBox.w, pitch) } : slotBox;
+  // Declared before the effect below that moves x, and it must stay so:
+  // useTransform subscribes to x in a layout effect, and effects run in
+  // order. Declared after, a re-render tore the subscription down and ran
+  // the jump before it came back, so a single jump (keyboard or assistive
+  // activation, with the bar reshaping a frame later) was never heard, and
+  // the capsule stayed on the last tab. A spring's later frames hid it.
+  const capsuleX = useTransform(x, (v) => v + box.dx + (pitch - box.w) / 2);
   // Remember the destination, so clearing a preview does not restart the
   // release spring and discard the velocity that the finger handed it.
   const destination = useRef<number | null>(capsuleTarget);
@@ -878,14 +892,6 @@ export function AdaptiveNav({
   // wobble; read as 0–1 it drives the lens the glyphs pass under.
   const lens = useTransform(stretch, (st) => Math.min(1, Math.max(0, (st - 1) / STRETCH_MAX)));
   const scaleY = useTransform([scale, stretch], ([s, st]: number[]) => s / Math.sqrt(st));
-  const slotBox = indicatorBox(indicator, slot, m.pad);
-  // In a spanning pill the capsule is its cell: the same width, so at either
-  // end it sits the pad from the pill's edge on every side, concentric with
-  // the pill's own corner, the way the disc is in a compact pill. A dot or a
-  // glow keeps its size. Either way it sits centred in the cell.
-  const box =
-    (spanning || top) && !wideTrack && indicator === 'capsule' ? { ...slotBox, w: Math.max(slotBox.w, pitch) } : slotBox;
-  const capsuleX = useTransform(x, (v) => v + box.dx + (pitch - box.w) / 2);
   const showCapsule = !wideTrack && !toolsInTrack && indicator !== 'lift' && marked;
   // The magnet only makes sense while every slot is where the arithmetic says.
   const magnet = showCapsule && scrubbing && !folded && !reduceMotion && !keyboardInput;
