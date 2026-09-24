@@ -25,10 +25,36 @@ function raster(
   return canvas.toDataURL('image/png');
 }
 
+/**
+ * Rasters kept by what they were drawn from. A change of screen moves the bar
+ * between the same few shapes (a pill with a screen's action circle beside
+ * it, one without), and each shape redrew its map and mask: at 4x CPU that
+ * was the largest cost in the frame the change landed in, and the new href
+ * made the browser decode the image and rebuild the filter besides. Kept, a
+ * return to a shape costs nothing and hands the filter the href it has.
+ */
+const RASTERS_KEPT = 24;
+const rasters = new Map<string, string>();
+function kept(key: string, draw: () => string): string {
+  const hit = rasters.get(key);
+  if (hit !== undefined) return hit;
+  const url = draw();
+  // An empty raster (no canvas yet) is not kept, so the client draws it.
+  if (url) {
+    if (rasters.size >= RASTERS_KEPT) rasters.delete(rasters.keys().next().value as string);
+    rasters.set(key, url);
+  }
+  return url;
+}
+
 const mapUrl = (w: number, h: number) =>
-  raster(w, h, (d, W, H) => fillDisplacementMap(d, W, H, Math.min(W, H) / 2, lensFor(H, 1).band));
+  kept(`map ${Math.round(w)} ${Math.round(h)}`, () =>
+    raster(w, h, (d, W, H) => fillDisplacementMap(d, W, H, Math.min(W, H) / 2, lensFor(H, 1).band)),
+  );
 const maskUrl = (w: number, h: number, lip: number) =>
-  raster(w, h, (d, W, H) => fillRimMask(d, W, H, Math.min(W, H) / 2, lensFor(H, 1).band, lip));
+  kept(`mask ${Math.round(w)} ${Math.round(h)} ${lip}`, () =>
+    raster(w, h, (d, W, H) => fillRimMask(d, W, H, Math.min(W, H) / 2, lensFor(H, 1).band, lip)),
+  );
 
 /**
  * The masks that thin the frost toward the lip, one for the pill at its target

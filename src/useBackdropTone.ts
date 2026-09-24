@@ -31,6 +31,13 @@ const THUMB = 24;
 const COLUMNS = [0.1, 0.3, 0.5, 0.7, 0.9];
 const ROWS = [0.35, 0.65];
 const TIMER_MS = 700;
+/**
+ * The least time between two samples. A scroll fired one every frame: a dozen
+ * elementsFromPoint and getComputedStyle reads in each, on the frames a long
+ * list was being flung through, where an old phone had none to spare. A tone
+ * changes as a section passes under the bar, which a fifth of a second catches.
+ */
+const MIN_GAP_MS = 200;
 
 let scratch: CanvasRenderingContext2D | null | undefined;
 const colorCache = new Map<string, RGBA | null>();
@@ -189,8 +196,11 @@ export function useBackdropTone(root: RefObject<HTMLElement | null>, setting: To
     if (!el) return;
     let frame = 0;
 
+    let later = 0;
+    let last = -Infinity;
     const sample = () => {
       frame = 0;
+      last = performance.now();
       const pill = el.querySelector<HTMLElement>('.anav__pill');
       if (!pill) return;
       const points: [number, number][] = [];
@@ -222,7 +232,20 @@ export function useBackdropTone(root: RefObject<HTMLElement | null>, setting: To
     first.current = false;
     const quietUntil = performance.now() + hold;
     const schedule = () => {
-      if (!frame && performance.now() >= quietUntil) frame = requestAnimationFrame(sample);
+      if (frame || later || document.hidden) return;
+      const now = performance.now();
+      if (now < quietUntil) return;
+      // Too soon after the last: one sample at the end of the gap instead, so
+      // where a scroll stops is still read.
+      const wait = last + MIN_GAP_MS - now;
+      if (wait > 0) {
+        later = window.setTimeout(() => {
+          later = 0;
+          schedule();
+        }, wait);
+        return;
+      }
+      frame = requestAnimationFrame(sample);
     };
 
     const settled = setTimeout(schedule, hold);
@@ -231,6 +254,7 @@ export function useBackdropTone(root: RefObject<HTMLElement | null>, setting: To
     const timer = setInterval(schedule, TIMER_MS);
     return () => {
       if (frame) cancelAnimationFrame(frame);
+      clearTimeout(later);
       clearTimeout(settled);
       document.removeEventListener('scroll', schedule, true);
       window.removeEventListener('resize', schedule);
